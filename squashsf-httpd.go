@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ein-gast/go-squashsf-httpd/internal/filer"
 	"github.com/ein-gast/go-squashsf-httpd/internal/logger"
 	"github.com/ein-gast/go-squashsf-httpd/internal/server"
 	"github.com/ein-gast/go-squashsf-httpd/internal/settings"
@@ -15,6 +16,9 @@ func main() {
 	config := settingsFromFlags()
 	ctx := context.Background()
 	log := logger.NewLogger()
+
+	log.Msg("Adding MIME types...")
+	filer.AddMimeTypes()
 
 	srv := server.NewServer(ctx, log, config)
 	srv.Serve(log)
@@ -26,6 +30,7 @@ func settingsFromFlags() *settings.Settings {
 	bindAddr := flag.String("host", config.BindAddr, "Bind this address")
 	bindPort := flag.Int("port", config.BindPort, "Listen this port")
 	prefix := flag.String("prefix", "/", "URL prefix")
+	charset := flag.String("charset", config.DefaultChareset, "Default charset for text")
 	flag.Parse()
 
 	if flag.NArg() != 1 {
@@ -34,6 +39,7 @@ func settingsFromFlags() *settings.Settings {
 	}
 	config.BindAddr = *bindAddr
 	config.BindPort = *bindPort
+	config.DefaultChareset = *charset
 	config.Archives = append(
 		config.Archives,
 		settings.ServedArchive{

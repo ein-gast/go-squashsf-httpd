@@ -2,10 +2,13 @@ package filer
 
 import (
 	"os"
+	"path"
 	"strings"
 
 	"github.com/CalebQ42/squashfs"
 	"github.com/ein-gast/go-squashsf-httpd/internal/settings"
+	"github.com/h2non/filetype"
+	"github.com/h2non/filetype/types"
 )
 
 type Filer struct {
@@ -40,6 +43,20 @@ func (f *Filer) PreOpen(filePath string) (*squashfs.File, error) {
 		return nil, err
 	}
 	return file, nil
+}
+
+func (f *Filer) Mime(file *squashfs.File, filePath string) types.MIME {
+	ext := path.Ext(filePath)
+	if len(ext) > 0 {
+		ext = ext[1:]
+	}
+
+	if !filetype.IsSupported(ext) {
+		return filetype.GetType("data").MIME
+	}
+
+	t := filetype.GetType(ext)
+	return t.MIME
 }
 
 func (f *Filer) normalizePath(filePath string) string {

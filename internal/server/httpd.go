@@ -15,6 +15,7 @@ type Server struct {
 	srv *http.Server
 	log *logger.Logger
 	ctx context.Context
+	enc string // default text encoding
 }
 
 func NewServer(ctx context.Context, log *logger.Logger, cfg *settings.Settings) *Server {
@@ -28,6 +29,7 @@ func NewServer(ctx context.Context, log *logger.Logger, cfg *settings.Settings) 
 	res := &Server{
 		srv: srv,
 		ctx: ctx,
+		enc: cfg.DefaultChareset,
 	}
 
 	rootHandled := false
@@ -69,26 +71,46 @@ func (srv *Server) Serve(log *logger.Logger) error {
 
 func (srv *Server) nullHandler(resp http.ResponseWriter, req *http.Request) {
 	srv.log.Msg(req.RemoteAddr, 404, req.Method, req.RequestURI)
-	resp.WriteHeader(404)
-	resp.Header().Add("context-type", "text/plain; charset=utf-8")
+	resp.Header().Add("content-type", "text/plain; charset=utf-8")
 	resp.Write([]byte("Not Found"))
+	resp.WriteHeader(404)
 }
 
 func (srv *Server) archiveHandler(fs *filer.Filer, resp http.ResponseWriter, req *http.Request) {
-	file, err := fs.PreOpen(req.RequestURI)
+	filePath := req.URL.Path
+	file, err := fs.PreOpen(filePath)
 	if err != nil {
 		srv.log.Msg(req.RemoteAddr, 404, req.Method, req.RequestURI, err.Error())
+		resp.Header().Add("content-type", "text/plain; charset=utf-8")
 		resp.WriteHeader(404)
-		resp.Header().Add("context-type", "text/plain; charset=utf-8")
 		resp.Write([]byte("Not Found: "))
 		resp.Write([]byte(err.Error()))
 		return
 	}
 	defer file.Close()
 
-	srv.log.Msg(req.RemoteAddr, 200, req.Method, req.RequestURI)
+	stat, err := file.Stat()
+	if err != nil {
+		srv.log.Msg(req.RemoteAddr, 500, req.Method, req.RequestURI, err.Error())
+		resp.Header().Add("content-type", "text/plain; charset=utf-8")
+		resp.WriteHeader(500)
+		resp.Write([]byte("Stat Error: "))
+		resp.Write([]byte(err.Error()))
+	}
+
+	var contentType string
+	mime := fs.Mime(file, filePath)
+	if mime.Type == "text" {
+		contentType = mime.Value + "; charset=" + srv.enc
+	} else {
+		contentType = mime.Value
+	}
+
+	srv.log.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
+	resp.Header().Add("content-type", contentType)
+	resp.Header().Add("content-length", fmt.Sprintf("%d", stat.Size()))
+	resp.Header().Add("x-name", stat.Name())
 	resp.WriteHeader(200)
-	resp.Header().Add("context-type", "text/plain; charset=utf-8")
 
 	buf := make([]byte, 1024)
 	_, err = io.CopyBuffer(resp, file, buf)

@@ -2,7 +2,10 @@ module github.com/ein-gast/go-squashsf-httpd
 
 go 1.24.0
 
-require github.com/CalebQ42/squashfs v1.4.0
+require (
+	github.com/CalebQ42/squashfs v1.4.0
+	github.com/h2non/filetype v1.1.3
+)
 
 require (
 	github.com/klauspost/compress v1.18.0 // indirect
