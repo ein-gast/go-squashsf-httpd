@@ -12,10 +12,11 @@ import (
 )
 
 type Server struct {
-	srv *http.Server
-	log *logger.Logger
-	ctx context.Context
-	enc string // default text encoding
+	srv     *http.Server
+	log     *logger.Logger
+	ctx     context.Context
+	enc     string // default text encoding
+	bufsize int    // copy buffer size
 }
 
 func NewServer(ctx context.Context, log *logger.Logger, cfg *settings.Settings) *Server {
@@ -27,9 +28,10 @@ func NewServer(ctx context.Context, log *logger.Logger, cfg *settings.Settings) 
 		Handler: mux,
 	}
 	res := &Server{
-		srv: srv,
-		ctx: ctx,
-		enc: cfg.DefaultChareset,
+		srv:     srv,
+		ctx:     ctx,
+		enc:     cfg.DefaultChareset,
+		bufsize: 10240,
 	}
 
 	rootHandled := false
@@ -76,9 +78,9 @@ func (srv *Server) nullHandler(resp http.ResponseWriter, req *http.Request) {
 	resp.WriteHeader(404)
 }
 
-func (srv *Server) archiveHandler(fs *filer.Filer, resp http.ResponseWriter, req *http.Request) {
+func (srv *Server) archiveHandler(fs filer.Filer, resp http.ResponseWriter, req *http.Request) {
 	filePath := req.URL.Path
-	file, err := fs.PreOpen(filePath)
+	file, stat, err := fs.PreOpen(filePath)
 	if err != nil {
 		srv.log.Msg(req.RemoteAddr, 404, req.Method, req.RequestURI, err.Error())
 		resp.Header().Add("content-type", "text/plain; charset=utf-8")
@@ -89,17 +91,10 @@ func (srv *Server) archiveHandler(fs *filer.Filer, resp http.ResponseWriter, req
 	}
 	defer file.Close()
 
-	stat, err := file.Stat()
-	if err != nil {
-		srv.log.Msg(req.RemoteAddr, 500, req.Method, req.RequestURI, err.Error())
-		resp.Header().Add("content-type", "text/plain; charset=utf-8")
-		resp.WriteHeader(500)
-		resp.Write([]byte("Stat Error: "))
-		resp.Write([]byte(err.Error()))
-	}
+	_ = stat // TODO: implemet Stat()
 
 	var contentType string
-	mime := fs.Mime(file, filePath)
+	mime := fs.Mime(filePath)
 	if mime.Type == "text" {
 		contentType = mime.Value + "; charset=" + srv.enc
 	} else {
@@ -108,11 +103,11 @@ func (srv *Server) archiveHandler(fs *filer.Filer, resp http.ResponseWriter, req
 
 	srv.log.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
 	resp.Header().Add("content-type", contentType)
-	resp.Header().Add("content-length", fmt.Sprintf("%d", stat.Size()))
-	resp.Header().Add("x-name", stat.Name())
+	// resp.Header().Add("content-length", fmt.Sprintf("%d", stat.Size()))
+	// resp.Header().Add("x-name", stat.Name())
 	resp.WriteHeader(200)
 
-	buf := make([]byte, 1024)
+	buf := make([]byte, srv.bufsize)
 	_, err = io.CopyBuffer(resp, file, buf)
 	if err != nil {
 		srv.log.Msg(err.Error())
