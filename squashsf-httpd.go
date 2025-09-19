@@ -26,11 +26,12 @@ func main() {
 	filer.AddMimeTypes()
 
 	log.Msg("PID=", os.Getpid())
-	log.Msg("Installing signal hook...")
-	go hookSignal(ctx, cancel, log)
 
 	srv := server.NewServer(ctx, log, config)
-	srv.Serve(log)
+	log.Msg("Installing signal hook...")
+	go hookSignal(ctx, cancel, log, srv)
+
+	srv.Serve()
 	log.Msg("App terminated")
 }
 
@@ -72,7 +73,12 @@ func settingsFromFlags() *settings.Settings {
 	return config
 }
 
-func hookSignal(ctx context.Context, cancel context.CancelFunc, log *logger.Logger) {
+func hookSignal(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	log *logger.Logger,
+	srv *server.Server,
+) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1)
 
@@ -82,9 +88,10 @@ func hookSignal(ctx context.Context, cancel context.CancelFunc, log *logger.Logg
 			log.Msg("Got signal:", sig)
 			switch sig {
 			case syscall.SIGUSR1:
-				log.Msg("Reloading...")
+				log.Msg("Reloading by siganl...")
 			default:
-				log.Msg("Terminaging...")
+				log.Msg("Terminaging by siganl...")
+				srv.Shutdown()
 				cancel()
 				return
 			}

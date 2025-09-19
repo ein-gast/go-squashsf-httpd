@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -21,38 +22,45 @@ type Server struct {
 }
 
 func NewServer(ctx context.Context, log *logger.Logger, cfg *settings.Settings) *Server {
-
-	mux := http.NewServeMux()
-
 	srv := &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", cfg.BindAddr, cfg.BindPort),
-		Handler: mux,
+		Addr:        fmt.Sprintf("%s:%d", cfg.BindAddr, cfg.BindPort),
+		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 	res := &Server{
-		srv:     srv,
-		ctx:     ctx,
-		enc:     cfg.DefaultChareset,
-		bufsize: cfg.BufferSize,
+		srv: srv,
+		ctx: ctx,
 	}
 	res.srv.SetKeepAlivesEnabled(true)
 
+	res.ApplyConfig(cfg)
+	return res
+}
+
+func (srv *Server) ApplyConfig(cfg *settings.Settings) {
+	srv.enc = cfg.DefaultChareset
+	srv.bufsize = cfg.BufferSize
+
+	mux := http.NewServeMux()
 	rootHandled := false
 	for _, archive := range cfg.Archives {
 		if archive.UrlPrefix == "/" {
 			rootHandled = true
 		}
-		handle, err := newPrefixHandler(res, archive)
+		handle, err := newPrefixHandler(srv, archive)
 		if err != nil {
-			log.Msg("Cant start handling file:", archive.ArchivePath, "[", err.Error(), "]")
+			srv.log.Msg("Cant start handling file:", archive.ArchivePath, "[", err.Error(), "]")
 			continue
 		}
 		mux.HandleFunc(archive.UrlPrefix, handle)
 	}
 	if !rootHandled {
-		mux.HandleFunc("/", res.nullHandler)
+		mux.HandleFunc("/", srv.nullHandler)
 	}
+	srv.srv.Handler = mux
 
-	return res
+	timeout := time.Second * time.Duration(cfg.ClientTimout)
+	srv.srv.ReadTimeout = timeout
+	srv.srv.WriteTimeout = timeout
 }
 
 func newPrefixHandler(srv *Server, archive settings.ServedArchive) (func(resp http.ResponseWriter, req *http.Request), error) {
@@ -65,11 +73,18 @@ func newPrefixHandler(srv *Server, archive settings.ServedArchive) (func(resp ht
 	}, nil
 }
 
-func (srv *Server) Serve(log *logger.Logger) error {
-	srv.log = log
-	log.Msg("Serving...", srv.srv.Addr)
+func (srv *Server) Serve() error {
+	srv.log.Msg("Serving...", srv.srv.Addr)
 	err := srv.srv.ListenAndServe()
-	log.Msg("Server stopped:", err.Error())
+	srv.log.Msg("Server stopped:", err.Error())
+	return err
+}
+func (srv *Server) Shutdown() error {
+	srv.log.Msg("Shutting down server...")
+	err := srv.srv.Shutdown(context.Background())
+	if err != nil {
+		srv.log.Msg("Shutdown error:", err.Error())
+	}
 	return err
 }
 
