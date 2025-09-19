@@ -2,7 +2,7 @@ package filer
 
 import (
 	"io"
-	"os"
+	"io/fs"
 
 	"github.com/ein-gast/go-squashsf-httpd/internal/settings"
 	"github.com/h2non/filetype/types"
@@ -10,7 +10,7 @@ import (
 
 type Filer interface {
 	Close()
-	PreOpen(filePath string) (io.ReadCloser, os.FileInfo, error)
+	PreOpen(filePath string) (io.ReadCloser, fs.FileInfo, error)
 	Mime(filePath string) types.MIME
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/ein-gast/go-squashsf-httpd/internal/filer"
 	"github.com/ein-gast/go-squashsf-httpd/internal/logger"
@@ -31,8 +32,9 @@ func NewServer(ctx context.Context, log *logger.Logger, cfg *settings.Settings) 
 		srv:     srv,
 		ctx:     ctx,
 		enc:     cfg.DefaultChareset,
-		bufsize: 10240,
+		bufsize: cfg.BufferSize,
 	}
+	res.srv.SetKeepAlivesEnabled(true)
 
 	rootHandled := false
 	for _, archive := range cfg.Archives {
@@ -91,8 +93,6 @@ func (srv *Server) archiveHandler(fs filer.Filer, resp http.ResponseWriter, req 
 	}
 	defer file.Close()
 
-	_ = stat // TODO: implemet Stat()
-
 	var contentType string
 	mime := fs.Mime(filePath)
 	if mime.Type == "text" {
@@ -103,9 +103,20 @@ func (srv *Server) archiveHandler(fs filer.Filer, resp http.ResponseWriter, req 
 
 	srv.log.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
 	resp.Header().Add("content-type", contentType)
-	// resp.Header().Add("content-length", fmt.Sprintf("%d", stat.Size()))
-	// resp.Header().Add("x-name", stat.Name())
+	resp.Header().Add("content-length", fmt.Sprintf("%d", stat.Size()))
+	resp.Header().Add("last-modified", HttpDate(stat.ModTime()))
+	resp.Header().Add("x-name", stat.Name())
+
+	if !isModifiedSince(req.Header.Get("if-modified-since"), stat.ModTime()) {
+		resp.WriteHeader(304) // not modified
+		return
+	}
+
 	resp.WriteHeader(200)
+
+	if req.Method == http.MethodHead {
+		return
+	}
 
 	buf := make([]byte, srv.bufsize)
 	_, err = io.CopyBuffer(resp, file, buf)
@@ -114,4 +125,29 @@ func (srv *Server) archiveHandler(fs filer.Filer, resp http.ResponseWriter, req 
 		resp.Write([]byte(err.Error()))
 		return
 	}
+}
+
+func isTimeEqualSoft(a, b time.Time) bool {
+	sub := a.Sub(b)
+	if sub < 0 && sub > -time.Second {
+		return true
+	}
+	if sub > 0 && sub < time.Second {
+		return true
+	}
+	return false
+}
+
+func isModifiedSince(headerTime string, mtime time.Time) bool {
+	if len(headerTime) == 0 {
+		return true
+	}
+	htime, err := time.Parse(time.RFC1123, headerTime)
+	if err != nil {
+		return true
+	}
+	if htime.After(mtime) || isTimeEqualSoft(htime, mtime) {
+		return false
+	}
+	return true
 }

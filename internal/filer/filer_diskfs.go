@@ -2,7 +2,9 @@ package filer
 
 import (
 	"io"
+	"io/fs"
 	"os"
+	"path"
 
 	"github.com/diskfs/go-diskfs/backend"
 	"github.com/diskfs/go-diskfs/filesystem"
@@ -40,6 +42,7 @@ func (stor *fileStorage) Stat() (os.FileInfo, error) {
 type FilerDiskfs struct {
 	archivePath string
 	disk        *fileStorage
+	diskStat    fs.FileInfo
 	fs          filesystem.FileSystem
 	// reader      squashfs.Reader
 }
@@ -52,14 +55,14 @@ func NewFilerDiskfs(archive settings.ServedArchive) (*FilerDiskfs, error) {
 	if err != nil {
 		return nil, err
 	}
-	stat, err := file.Stat()
+	res.diskStat, err = file.Stat()
 	if err != nil {
 		return nil, err
 	}
 	res.disk = &fileStorage{
 		file: file,
 	}
-	res.fs, err = squashfs.Read(res.disk, stat.Size(), 0, 4096)
+	res.fs, err = squashfs.Read(res.disk, res.diskStat.Size(), 0, 4096)
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +74,26 @@ func (f *FilerDiskfs) Close() {
 	f.disk.Close()
 }
 
-func (f *FilerDiskfs) PreOpen(filePath string) (io.ReadCloser, os.FileInfo, error) {
+func (f *FilerDiskfs) PreOpen(filePath string) (io.ReadCloser, fs.FileInfo, error) {
 	file, err := f.fs.OpenFile(filePath, os.O_RDONLY)
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO implement Stat()
-	return file, nil, nil
+	size, err := file.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = file.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, nil, err
+	}
+	stat := &FileStat{
+		fileName: path.Base(filePath),
+		isDir:    false,
+		size:     size,
+		mTime:    f.diskStat.ModTime(),
+	}
+	return file, stat, nil
 }
 
 func (f *FilerDiskfs) Mime(filePath string) types.MIME {

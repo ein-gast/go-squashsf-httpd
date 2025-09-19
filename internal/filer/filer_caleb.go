@@ -2,6 +2,7 @@ package filer
 
 import (
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -36,7 +37,7 @@ func (f *FilerCaleb) Close() {
 	f.arch.Close()
 }
 
-func (f *FilerCaleb) PreOpen(filePath string) (io.ReadCloser, os.FileInfo, error) {
+func (f *FilerCaleb) PreOpen(filePath string) (io.ReadCloser, fs.FileInfo, error) {
 	file, err := f.reader.OpenFile(f.normalizePath(filePath))
 	if err != nil {
 		return nil, nil, err
