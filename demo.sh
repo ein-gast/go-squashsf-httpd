@@ -1,1 +1,1 @@
-go run squashsf-httpd.go ./examples/potree-lion.sq
+go run squashsf-httpd.go -config squashfs-httpd.yaml

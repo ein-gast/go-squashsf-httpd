@@ -61,7 +61,7 @@ func newPrefixHandler(srv *Server, archive settings.ServedArchive) (func(resp ht
 		return nil, err
 	}
 	return func(resp http.ResponseWriter, req *http.Request) {
-		srv.archiveHandler(fs, resp, req)
+		srv.archiveHandler(fs, archive, resp, req)
 	}, nil
 }
 
@@ -74,28 +74,37 @@ func (srv *Server) Serve(log *logger.Logger) error {
 }
 
 func (srv *Server) nullHandler(resp http.ResponseWriter, req *http.Request) {
-	srv.log.Msg(req.RemoteAddr, 404, req.Method, req.RequestURI)
-	resp.Header().Add("content-type", "text/plain; charset=utf-8")
-	resp.Write([]byte("Not Found"))
-	resp.WriteHeader(404)
+	srv.writeError(404, "Not Found", resp, req)
 }
 
-func (srv *Server) archiveHandler(fs filer.Filer, resp http.ResponseWriter, req *http.Request) {
-	filePath := req.URL.Path
+func (srv *Server) writeError(code int, message string, resp http.ResponseWriter, req *http.Request) {
+	srv.log.Msg(req.RemoteAddr, code, req.Method, req.RequestURI, message)
+	resp.Header().Add("content-type", "text/plain; charset=utf-8")
+	resp.WriteHeader(code)
+	resp.Write([]byte(message))
+}
+
+func (srv *Server) archiveHandler(
+	fs filer.Filer,
+	archive settings.ServedArchive,
+	resp http.ResponseWriter,
+	req *http.Request,
+) {
+	filePath, err := pathInArchive(archive, req.URL.Path)
+	if err != nil {
+		srv.writeError(404, "Not Found: "+err.Error(), resp, req)
+		return
+	}
 	file, stat, err := fs.PreOpen(filePath)
 	if err != nil {
-		srv.log.Msg(req.RemoteAddr, 404, req.Method, req.RequestURI, err.Error())
-		resp.Header().Add("content-type", "text/plain; charset=utf-8")
-		resp.WriteHeader(404)
-		resp.Write([]byte("Not Found: "))
-		resp.Write([]byte(err.Error()))
+		srv.writeError(404, "Not Found: "+err.Error(), resp, req)
 		return
 	}
 	defer file.Close()
 
 	var contentType string
 	mime := fs.Mime(filePath)
-	if mime.Type == "text" {
+	if mime.Type == "text" && srv.enc != "" {
 		contentType = mime.Value + "; charset=" + srv.enc
 	} else {
 		contentType = mime.Value
@@ -105,6 +114,7 @@ func (srv *Server) archiveHandler(fs filer.Filer, resp http.ResponseWriter, req 
 	resp.Header().Add("content-type", contentType)
 	resp.Header().Add("content-length", fmt.Sprintf("%d", stat.Size()))
 	resp.Header().Add("last-modified", HttpDate(stat.ModTime()))
+	resp.Header().Add("x-path", filePath)
 	resp.Header().Add("x-name", stat.Name())
 
 	if !isModifiedSince(req.Header.Get("if-modified-since"), stat.ModTime()) {

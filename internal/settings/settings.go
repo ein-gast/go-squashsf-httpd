@@ -1,11 +1,11 @@
 package settings
 
 type Settings struct {
-	BindAddr        string
-	BindPort        int
-	Archives        []ServedArchive
-	DefaultChareset string
-	BufferSize      int
+	BindAddr        string          // bind host
+	BindPort        int             // bind port
+	Archives        []ServedArchive // served archives
+	DefaultChareset string          // text files charset (fddtfd to conten-type header)
+	BufferSize      int             // read (from squashfs) buffer size
 }
 
 type ServedArchive struct {

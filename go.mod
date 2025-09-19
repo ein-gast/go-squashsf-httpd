@@ -17,4 +17,5 @@ require (
 	github.com/therootcompany/xz v1.0.1 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	golang.org/x/sys v0.19.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

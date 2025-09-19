@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ein-gast/go-squashsf-httpd/internal/filer"
 	"github.com/ein-gast/go-squashsf-httpd/internal/logger"
@@ -14,11 +16,18 @@ import (
 
 func main() {
 	config := settingsFromFlags()
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	log := logger.NewLogger()
+
+	log.Msg("Starting with configuation")
+	settings.PrintSetting(*config, log)
 
 	log.Msg("Adding MIME types...")
 	filer.AddMimeTypes()
+
+	log.Msg("PID=", os.Getpid())
+	log.Msg("Installing signal hook...")
+	go hookSignal(ctx, cancel, log)
 
 	srv := server.NewServer(ctx, log, config)
 	srv.Serve(log)
@@ -27,25 +36,61 @@ func main() {
 
 func settingsFromFlags() *settings.Settings {
 	config := settings.NewSettings()
+	var err error
+	yamlPath := flag.String("config", "", "Config file path")
 	bindAddr := flag.String("host", config.BindAddr, "Bind this address")
 	bindPort := flag.Int("port", config.BindPort, "Listen this port")
 	prefix := flag.String("prefix", "/", "URL prefix")
+	squash := flag.String("squash", "", "SquashFS file path")
 	charset := flag.String("charset", config.DefaultChareset, "Default charset for text")
 	flag.Parse()
 
-	if flag.NArg() != 1 {
-		fmt.Println("Set archive path")
+	if *yamlPath != "" {
+		config, err = settings.Load(*yamlPath)
+		if err != nil {
+			fmt.Println("Config reading error:", err.Error())
+			os.Exit(0)
+		}
+	}
+
+	if len(config.Archives) == 0 && *squash == "" {
+		fmt.Println("At least one SquashFS file path must be provided in CLI or config")
 		os.Exit(0)
 	}
 	config.BindAddr = *bindAddr
 	config.BindPort = *bindPort
 	config.DefaultChareset = *charset
-	config.Archives = append(
-		config.Archives,
-		settings.ServedArchive{
-			UrlPrefix:   *prefix,
-			ArchivePath: flag.Arg(0),
-		},
-	)
+	if *squash != "" {
+		config.Archives = append(
+			config.Archives,
+			settings.ServedArchive{
+				UrlPrefix:   *prefix,
+				ArchivePath: *squash,
+			},
+		)
+	}
 	return config
+}
+
+func hookSignal(ctx context.Context, cancel context.CancelFunc, log *logger.Logger) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1)
+
+	for {
+		select {
+		case sig := <-c:
+			log.Msg("Got signal:", sig)
+			switch sig {
+			case syscall.SIGUSR1:
+				log.Msg("Reloading...")
+			default:
+				log.Msg("Terminaging...")
+				cancel()
+				return
+			}
+		case <-ctx.Done():
+			log.Msg("Canceled")
+			return
+		}
+	}
 }
