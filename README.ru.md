@@ -22,7 +22,12 @@ stat squashfs-httpd.bin
 
 ## Как установить и настроить
 
-Статический бинарник `squashfs-httpd` можно положить куда вам угодно.
+Если вы использовали `make install` или скачали сборку, то испольниый файл `squashfs-httpd` можно положить куда вам угодно.
+
+Если использовать пакетный менеджер golang, то постаить сервер можно так:
+```bash
+go install github.com/ein-gast/go-squashsf-httpd/cmd/squashsf-httpd@latest
+```
 
 Простейший способ запуска для раздачи фйлов из одного образа squashfs:
 

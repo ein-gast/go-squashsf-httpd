@@ -1,10 +1,10 @@
 .PHONY: all test dockerbuild
 
 TEMP_TAG=localhost/squashfs-httpd:latest
-TARGET_BIN=squashfs-httpd.bin
+TARGET_BIN=squashfs-httpd
 
 squashfs-httpd:
-	CGO_ENABLED=0 go build -ldflags="-w -s" -o squashfs-httpd ./squashsf-httpd.go
+	CGO_ENABLED=0 go build -ldflags="-w -s" -o ${TARGET_BIN} ./cmd/squashsf-httpd
 
 dockerbuild:
 	docker build -t "${TEMP_TAG}" .

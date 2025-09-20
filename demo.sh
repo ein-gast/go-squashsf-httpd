@@ -1,1 +1,1 @@
-go run squashsf-httpd.go -config squashfs-httpd.yaml
+go run ./cmd/squashsf-httpd -config squashfs-httpd.yaml
