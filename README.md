@@ -55,8 +55,10 @@ access_log: "./var/logs/access.log"
 access_log_off: false
 client_timeout: 5.0
 routes:
+   # index.html is served at http://127.0.0.1:8080/one/index.html
   - prefix: /one/
     squash: ./examples/data/potree-lion.sq
+   # index.html is served at http://127.0.0.1:8080/two/potree-lion.sq/index.html
   - prefix: /two/
     squashdir: ./examples/data/
 ```

@@ -2,5 +2,6 @@
 
 /bench*
 
+/TAG
 /squashfs-httpd
 /squashfs-httpd.bin
