@@ -21,7 +21,7 @@ dockerbuild:
 tag:
 	git rev-parse --abbrev-ref HEAD > TAG
 	grep -F HEAD TAG && git tag --points-at HEAD > tag || true
-	grep -F main TAG && git rev-parse --short main > TAG || true
+	grep -F main TAG && echo -n "git-" > TAG && git rev-parse --short main >> TAG || true
 
 test:
 	go test ./...
