@@ -10,16 +10,18 @@ import (
 
 	"github.com/ein-gast/go-squashsf-httpd/internal/filer"
 	"github.com/ein-gast/go-squashsf-httpd/internal/logger"
+	"github.com/ein-gast/go-squashsf-httpd/internal/pool"
 	"github.com/ein-gast/go-squashsf-httpd/internal/settings"
 )
 
 type Server struct {
-	srv     *http.Server
-	elog    logger.Logger
-	alog    logger.Logger
-	ctx     context.Context
-	enc     string // default text encoding
-	bufsize int    // copy buffer size
+	srv   *http.Server
+	elog  logger.Logger
+	alog  logger.Logger
+	ctx   context.Context
+	enc   string // default text encoding
+	bsize int
+	bpool *pool.BufferPool
 }
 
 func NewServer(
@@ -46,7 +48,8 @@ func NewServer(
 
 func (srv *Server) ApplyConfig(cfg *settings.Settings) {
 	srv.enc = cfg.DefaultChareset
-	srv.bufsize = cfg.BufferSize
+	srv.bsize = cfg.BufferSize
+	srv.bpool = pool.NewBufferPool(cfg.BufferSize)
 
 	mux := http.NewServeMux()
 	rootHandled := false
@@ -139,7 +142,7 @@ func (srv *Server) archiveHandler(
 	resp.Header().Add("x-path", filePath)
 	resp.Header().Add("x-name", stat.Name())
 
-	if !isModifiedSince(req.Header.Get("if-modified-since"), stat.ModTime()) {
+	if !IsModifiedSince(req.Header.Get("if-modified-since"), stat.ModTime()) {
 		srv.alog.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
 		resp.WriteHeader(304) // not modified
 		return
@@ -152,8 +155,12 @@ func (srv *Server) archiveHandler(
 		return
 	}
 
-	buf := make([]byte, srv.bufsize)
-	_, err = io.CopyBuffer(resp, file, buf)
+	// TODO needs benchmarking:
+	//buf := bytes.NewBuffer(make([]byte, srv.bsize))
+	buf := srv.bpool.New()
+	defer srv.bpool.Return(buf)
+
+	_, err = io.CopyBuffer(resp, file, buf.Bytes())
 	if err != nil {
 		srv.elog.Msg(err.Error())
 		resp.Write([]byte(err.Error()))
@@ -167,29 +174,4 @@ func (srv *Server) ELog() logger.Logger {
 
 func (srv *Server) ALog() logger.Logger {
 	return srv.alog
-}
-
-func isTimeEqualSoft(a, b time.Time) bool {
-	sub := a.Sub(b)
-	if sub < 0 && sub > -time.Second {
-		return true
-	}
-	if sub > 0 && sub < time.Second {
-		return true
-	}
-	return false
-}
-
-func isModifiedSince(headerTime string, mtime time.Time) bool {
-	if len(headerTime) == 0 {
-		return true
-	}
-	htime, err := time.Parse(time.RFC1123, headerTime)
-	if err != nil {
-		return true
-	}
-	if htime.After(mtime) || isTimeEqualSoft(htime, mtime) {
-		return false
-	}
-	return true
 }

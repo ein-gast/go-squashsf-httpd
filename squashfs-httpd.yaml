@@ -12,3 +12,6 @@ routes:
   # open http://127.0.0.1:8080/you/index.html
   - prefix: /you/
     squash: ./examples/data/potree-lion.sq
+  # open http://127.0.0.1:8080/all/potree-lion.sq/index.html
+  - prefix: /all/
+    squashdir: ./examples/data/
