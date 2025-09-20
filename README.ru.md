@@ -13,7 +13,7 @@ make all
 stat squashfs-httpd
 ```
 
-Можнго собраать используя докер (не требуется golang на хост-машине):
+Можно собрать через докер (не требуется golang на хост-машине):
 ```bash
 git clone https://github.com/ein-gast/go-squashsf-httpd.git
 make dockerbuild
@@ -30,7 +30,7 @@ stat squashfs-httpd.bin
 ./squashfs-httpd -host 127.0.0.1 -port 8080 -squash ./examples/data/potree-lion.sq
 ```
 
-Эта команда выдаст по адресу `http://127.0.0.1:8080/index.html` пример облака точек из состава проекта [Potree](https://github.com/potree/potree). 
+Такая команда выдаст по адресу `http://127.0.0.1:8080/index.html` облако точек, взятое из примеров проекта [Potree](https://github.com/potree/potree). 
 
 Подробнее о параметрах: `./squashfs-httpd --help`
 
