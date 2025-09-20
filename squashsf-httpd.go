@@ -15,24 +15,26 @@ import (
 )
 
 func main() {
-	config := settingsFromFlags()
 	ctx, cancel := context.WithCancel(context.Background())
-	log := logger.NewLogger()
+	config := settingsFromFlags()
+	elog := logger.NewLogger()
+	alog := logger.NewLogger()
+	reopenLogs(elog, alog, config)
 
-	log.Msg("Starting with configuation")
-	settings.PrintSetting(*config, log)
+	elog.Msg("Starting with configuation")
+	settings.PrintSetting(*config, elog)
 
-	log.Msg("Adding MIME types...")
+	elog.Msg("Adding MIME types...")
 	filer.AddMimeTypes()
 
-	log.Msg("PID=", os.Getpid())
+	elog.Msg("PID:", os.Getpid())
 
-	srv := server.NewServer(ctx, log, config)
-	log.Msg("Installing signal hook...")
-	go hookSignal(ctx, cancel, log, srv)
+	srv := server.NewServer(ctx, elog, alog, config)
+	elog.Msg("Installing signal hook...")
+	go hookSignal(ctx, cancel, elog, srv, config)
 
 	srv.Serve()
-	log.Msg("App terminated")
+	elog.Msg("App terminated")
 }
 
 func settingsFromFlags() *settings.Settings {
@@ -52,15 +54,16 @@ func settingsFromFlags() *settings.Settings {
 			fmt.Println("Config reading error:", err.Error())
 			os.Exit(0)
 		}
+	} else {
+		config.BindAddr = *bindAddr
+		config.BindPort = *bindPort
+		config.DefaultChareset = *charset
 	}
 
 	if len(config.Archives) == 0 && *squash == "" {
 		fmt.Println("At least one SquashFS file path must be provided in CLI or config")
 		os.Exit(0)
 	}
-	config.BindAddr = *bindAddr
-	config.BindPort = *bindPort
-	config.DefaultChareset = *charset
 	if *squash != "" {
 		config.Archives = append(
 			config.Archives,
@@ -73,11 +76,29 @@ func settingsFromFlags() *settings.Settings {
 	return config
 }
 
+func reopenLogs(e logger.Logger, a logger.Logger, s *settings.Settings) {
+	e.Msg("Reopening log:", s.ErrorLog)
+	err := e.OpenFile(s.ErrorLog)
+	if err != nil {
+		e.Msg(err.Error())
+	} else {
+		e.Msg("Log opened: ", s.ErrorLog)
+	}
+	e.Msg("Reopening log:", s.AccessLog)
+	err = a.OpenFile(s.AccessLog)
+	if err != nil {
+		e.Msg(err.Error())
+	} else {
+		e.Msg("Log opened: ", s.AccessLog)
+	}
+}
+
 func hookSignal(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	log *logger.Logger,
+	log logger.Logger,
 	srv *server.Server,
+	s *settings.Settings,
 ) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1)
@@ -88,9 +109,10 @@ func hookSignal(
 			log.Msg("Got signal:", sig)
 			switch sig {
 			case syscall.SIGUSR1:
-				log.Msg("Reloading by siganl...")
+				log.Msg("Reloading by signal...")
+				reopenLogs(srv.ELog(), srv.ALog(), s)
 			default:
-				log.Msg("Terminaging by siganl...")
+				log.Msg("Terminaging by signal...")
 				srv.Shutdown()
 				cancel()
 				return

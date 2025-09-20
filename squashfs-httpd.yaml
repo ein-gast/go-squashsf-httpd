@@ -1,14 +1,14 @@
 bind_addr: 127.0.0.1
 bind_port: 8080
-charset: cp1251
-buffer: 4096
-#error_log: "./logs/error.log"
-#access_log: "./logs/access.log"
-#client_timeout: 5.0
+charset: utf-8
+buffer: 10240
+#error_log: "./var/logs/error.log"
+#access_log: "./var/logs/access.log"
+client_timeout: 5.0
 routes:
   # open http://127.0.0.1:8080/me/index.html
   - prefix: /me/
-    squash: ./examples/potree-lion.sq
+    squash: ./examples/data/potree-lion.sq
   # open http://127.0.0.1:8080/you/index.html
   - prefix: /you/
-    squash: ./examples/potree-lion.sq
+    squash: ./examples/data/potree-lion.sq

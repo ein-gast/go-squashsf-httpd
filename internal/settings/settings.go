@@ -6,7 +6,9 @@ type Settings struct {
 	Archives        []ServedArchive // served archives
 	DefaultChareset string          // text files charset (fddtfd to conten-type header)
 	BufferSize      int             // read (from squashfs) buffer size
-	ClientTimout    float64         // client idle timeout
+	ClientTimeout   float64         // client idle timeout
+	AccessLog       string
+	ErrorLog        string
 }
 
 type ServedArchive struct {
@@ -21,7 +23,9 @@ func NewSettings() *Settings {
 		Archives:        make([]ServedArchive, 0, 1),
 		DefaultChareset: "utf-8",
 		BufferSize:      10240,
-		ClientTimout:    5.0,
+		ClientTimeout:   5.0,
+		AccessLog:       "/dev/stderr",
+		ErrorLog:        "/dev/stderr",
 	}
 	return s
 }

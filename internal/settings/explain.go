@@ -6,11 +6,14 @@ import (
 	"github.com/ein-gast/go-squashsf-httpd/internal/logger"
 )
 
-func PrintSetting(s Settings, log *logger.Logger) {
+func PrintSetting(s Settings, log logger.Logger) {
 	log.Msg(fmt.Sprintf("Listen:\t%s:%d", s.BindAddr, s.BindPort))
 	log.Msg(fmt.Sprintf("Charset:\t%s", s.DefaultChareset))
 	log.Msg(fmt.Sprintf("BuffSize:\t%d", s.BufferSize))
-	log.Msg("Routing:")
+	log.Msg(fmt.Sprintf("C.Timeout:\t%f", s.ClientTimeout))
+	log.Msg(fmt.Sprintf("AccessLog:\t%s", s.AccessLog))
+	log.Msg(fmt.Sprintf("ErrorLog:\t%s", s.ErrorLog))
+	log.Msg("Routes:")
 	for _, route := range s.Archives {
 		log.Msg(fmt.Sprintf("%s -> %s", route.UrlPrefix, route.ArchivePath))
 	}

@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"fmt"
 	"os"
 	"path"
 
@@ -18,6 +17,9 @@ type YamlSettings struct {
 	BindPort        int         `yaml:"bind_port"`
 	DefaultChareset string      `yaml:"charset"`
 	BufferSize      int         `yaml:"buffer"`
+	ClientTimeout   float64     `yaml:"client_timeout"`
+	AccessLog       string      `yaml:"access_log"`
+	ErrorLog        string      `yaml:"error_log"`
 	Routes          []YamlRoute `yaml:"routes"`
 }
 
@@ -41,8 +43,14 @@ func Load(cfgPath string) (*Settings, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("[%s]\n", base)
+	// transrorming log paths
+	if len(y.ErrorLog) > 0 && !path.IsAbs(y.ErrorLog) {
+		y.ErrorLog = path.Join(base, y.ErrorLog)
+	}
+	if len(y.ErrorLog) > 0 && !path.IsAbs(y.AccessLog) {
+		y.AccessLog = path.Join(base, y.AccessLog)
+	}
+	// transrorming route paths
 	for i := range y.Routes {
 		sq := y.Routes[i].Squash
 		if !path.IsAbs(sq) {
@@ -55,10 +63,13 @@ func Load(cfgPath string) (*Settings, error) {
 
 func (obj *YamlSettings) ToSetting() *Settings {
 	s := NewSettings()
-	s.BindAddr = obj.BindAddr
-	s.BindPort = obj.BindPort
-	s.DefaultChareset = obj.DefaultChareset
-	s.BufferSize = obj.BufferSize
+	s.BindAddr = strDefault(obj.BindAddr, s.BindAddr)
+	s.BindPort = intDefault(obj.BindPort, s.BindPort)
+	s.DefaultChareset = strDefault(obj.DefaultChareset, s.DefaultChareset)
+	s.BufferSize = intDefault(obj.BufferSize, s.BufferSize)
+	s.ClientTimeout = obj.ClientTimeout
+	s.AccessLog = strDefault(obj.AccessLog, s.AccessLog)
+	s.ErrorLog = strDefault(obj.ErrorLog, s.ErrorLog)
 	s.Archives = make([]ServedArchive, 0, len(obj.Routes))
 	for _, r := range obj.Routes {
 		s.Archives = append(s.Archives, ServedArchive{
@@ -75,6 +86,9 @@ func (s *Settings) ToYaml() *YamlSettings {
 		BindPort:        s.BindPort,
 		DefaultChareset: s.DefaultChareset,
 		BufferSize:      s.BufferSize,
+		ClientTimeout:   s.ClientTimeout,
+		AccessLog:       s.AccessLog,
+		ErrorLog:        s.ErrorLog,
 		Routes:          make([]YamlRoute, 0, len(s.Archives)),
 	}
 	for _, r := range s.Archives {
@@ -84,4 +98,18 @@ func (s *Settings) ToYaml() *YamlSettings {
 		})
 	}
 	return obj
+}
+
+func strDefault(val string, def string) string {
+	if len(val) > 0 {
+		return val
+	}
+	return def
+}
+
+func intDefault(val int, def int) int {
+	if val != 0 {
+		return val
+	}
+	return def
 }

@@ -1,13 +1,10 @@
 package logger
 
-import "log"
-
-type Logger struct{}
-
-func NewLogger() *Logger {
-	return &Logger{}
+type Logger interface {
+	Msg(v ...any)
+	OpenFile(fileName string) error
 }
 
-func (*Logger) Msg(v ...any) {
-	log.Println(v...)
+func NewLogger() Logger {
+	return NewLoggerStd()
 }

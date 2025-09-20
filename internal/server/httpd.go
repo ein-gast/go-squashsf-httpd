@@ -15,20 +15,28 @@ import (
 
 type Server struct {
 	srv     *http.Server
-	log     *logger.Logger
+	elog    logger.Logger
+	alog    logger.Logger
 	ctx     context.Context
 	enc     string // default text encoding
 	bufsize int    // copy buffer size
 }
 
-func NewServer(ctx context.Context, log *logger.Logger, cfg *settings.Settings) *Server {
+func NewServer(
+	ctx context.Context,
+	elog logger.Logger,
+	alog logger.Logger,
+	cfg *settings.Settings,
+) *Server {
 	srv := &http.Server{
 		Addr:        fmt.Sprintf("%s:%d", cfg.BindAddr, cfg.BindPort),
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 	res := &Server{
-		srv: srv,
-		ctx: ctx,
+		srv:  srv,
+		ctx:  ctx,
+		elog: elog,
+		alog: alog,
 	}
 	res.srv.SetKeepAlivesEnabled(true)
 
@@ -48,7 +56,7 @@ func (srv *Server) ApplyConfig(cfg *settings.Settings) {
 		}
 		handle, err := newPrefixHandler(srv, archive)
 		if err != nil {
-			srv.log.Msg("Cant start handling file:", archive.ArchivePath, "[", err.Error(), "]")
+			srv.elog.Msg("Cant start handling file:", archive.ArchivePath, "[", err.Error(), "]")
 			continue
 		}
 		mux.HandleFunc(archive.UrlPrefix, handle)
@@ -58,7 +66,7 @@ func (srv *Server) ApplyConfig(cfg *settings.Settings) {
 	}
 	srv.srv.Handler = mux
 
-	timeout := time.Second * time.Duration(cfg.ClientTimout)
+	timeout := time.Second * time.Duration(cfg.ClientTimeout)
 	srv.srv.ReadTimeout = timeout
 	srv.srv.WriteTimeout = timeout
 }
@@ -74,16 +82,16 @@ func newPrefixHandler(srv *Server, archive settings.ServedArchive) (func(resp ht
 }
 
 func (srv *Server) Serve() error {
-	srv.log.Msg("Serving...", srv.srv.Addr)
+	srv.elog.Msg("Serving...", srv.srv.Addr)
 	err := srv.srv.ListenAndServe()
-	srv.log.Msg("Server stopped:", err.Error())
+	srv.elog.Msg("Server stopped:", err.Error())
 	return err
 }
 func (srv *Server) Shutdown() error {
-	srv.log.Msg("Shutting down server...")
+	srv.elog.Msg("Shutting down server...")
 	err := srv.srv.Shutdown(context.Background())
 	if err != nil {
-		srv.log.Msg("Shutdown error:", err.Error())
+		srv.elog.Msg("Shutdown error:", err.Error())
 	}
 	return err
 }
@@ -93,7 +101,7 @@ func (srv *Server) nullHandler(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (srv *Server) writeError(code int, message string, resp http.ResponseWriter, req *http.Request) {
-	srv.log.Msg(req.RemoteAddr, code, req.Method, req.RequestURI, message)
+	srv.alog.Msg(req.RemoteAddr, code, req.Method, req.RequestURI, message)
 	resp.Header().Add("content-type", "text/plain; charset=utf-8")
 	resp.WriteHeader(code)
 	resp.Write([]byte(message))
@@ -125,7 +133,6 @@ func (srv *Server) archiveHandler(
 		contentType = mime.Value
 	}
 
-	srv.log.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
 	resp.Header().Add("content-type", contentType)
 	resp.Header().Add("content-length", fmt.Sprintf("%d", stat.Size()))
 	resp.Header().Add("last-modified", HttpDate(stat.ModTime()))
@@ -133,10 +140,12 @@ func (srv *Server) archiveHandler(
 	resp.Header().Add("x-name", stat.Name())
 
 	if !isModifiedSince(req.Header.Get("if-modified-since"), stat.ModTime()) {
+		srv.alog.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
 		resp.WriteHeader(304) // not modified
 		return
 	}
 
+	srv.alog.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
 	resp.WriteHeader(200)
 
 	if req.Method == http.MethodHead {
@@ -146,10 +155,18 @@ func (srv *Server) archiveHandler(
 	buf := make([]byte, srv.bufsize)
 	_, err = io.CopyBuffer(resp, file, buf)
 	if err != nil {
-		srv.log.Msg(err.Error())
+		srv.elog.Msg(err.Error())
 		resp.Write([]byte(err.Error()))
 		return
 	}
+}
+
+func (srv *Server) ELog() logger.Logger {
+	return srv.elog
+}
+
+func (srv *Server) ALog() logger.Logger {
+	return srv.alog
 }
 
 func isTimeEqualSoft(a, b time.Time) bool {
