@@ -19,6 +19,7 @@ type YamlSettings struct {
 	DefaultChareset string      `yaml:"charset"`
 	BufferSize      int         `yaml:"buffer"`
 	ClientTimeout   float64     `yaml:"client_timeout"`
+	AccessLogOff    bool        `yaml:"access_log_off"`
 	AccessLog       string      `yaml:"access_log"`
 	ErrorLog        string      `yaml:"error_log"`
 	Routes          []YamlRoute `yaml:"routes"`
@@ -78,6 +79,7 @@ func (obj *YamlSettings) ToSetting() *Settings {
 	s.DefaultChareset = strDefault(obj.DefaultChareset, s.DefaultChareset)
 	s.BufferSize = intDefault(obj.BufferSize, s.BufferSize)
 	s.ClientTimeout = obj.ClientTimeout
+	s.AccessLogOff = obj.AccessLogOff
 	s.AccessLog = strDefault(obj.AccessLog, s.AccessLog)
 	s.ErrorLog = strDefault(obj.ErrorLog, s.ErrorLog)
 	s.Archives = make([]ServedArchive, 0, len(obj.Routes))
@@ -106,6 +108,7 @@ func (s *Settings) ToYaml() *YamlSettings {
 		DefaultChareset: s.DefaultChareset,
 		BufferSize:      s.BufferSize,
 		ClientTimeout:   s.ClientTimeout,
+		AccessLogOff:    s.AccessLogOff,
 		AccessLog:       s.AccessLog,
 		ErrorLog:        s.ErrorLog,
 		Routes:          make([]YamlRoute, 0, len(s.Archives)),

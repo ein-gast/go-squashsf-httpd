@@ -8,6 +8,7 @@ type Settings struct {
 	ClientTimeout   float64 // client idle timeout
 	AccessLog       string
 	ErrorLog        string
+	AccessLogOff    bool
 	Archives        []ServedArchive    // served archives
 	Directories     []ServedArchiveDir // served archive dirs
 }
@@ -31,6 +32,7 @@ func NewSettings() *Settings {
 		ClientTimeout:   5.0,
 		AccessLog:       "/dev/stderr",
 		ErrorLog:        "/dev/stderr",
+		AccessLogOff:    false,
 		Archives:        make([]ServedArchive, 0, 4),
 		Directories:     make([]ServedArchiveDir, 0, 4),
 	}

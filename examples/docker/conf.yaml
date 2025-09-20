@@ -4,6 +4,7 @@ charset: utf-8
 buffer: 10240
 error_log: "/dev/stderr"
 access_log: "/dev/stderr"
+access_log_off: false
 client_timeout: 5.0
 routes:
   - prefix: /me/

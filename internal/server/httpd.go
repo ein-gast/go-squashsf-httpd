@@ -15,14 +15,15 @@ import (
 )
 
 type Server struct {
-	srv    *http.Server
-	elog   logger.Logger
-	alog   logger.Logger
-	ctx    context.Context
-	enc    string // default text encoding
-	bsize  int
-	bpool  *pool.BufferPool
-	routes []filer.Filer
+	srv     *http.Server
+	elog    logger.Logger
+	alog    logger.Logger
+	alogOff bool
+	ctx     context.Context
+	enc     string // default text encoding
+	bsize   int
+	bpool   *pool.BufferPool
+	routes  []filer.Filer
 }
 
 func NewServer(
@@ -52,6 +53,7 @@ func (srv *Server) ApplyConfig(cfg *settings.Settings) {
 	srv.enc = cfg.DefaultChareset
 	srv.bsize = cfg.BufferSize
 	srv.bpool = pool.NewBufferPool(cfg.BufferSize)
+	srv.alogOff = cfg.AccessLogOff
 
 	mux := http.NewServeMux()
 	rootHandled := false
@@ -144,11 +146,18 @@ func (srv *Server) nullHandler(resp http.ResponseWriter, req *http.Request) {
 }
 
 func (srv *Server) writeError(code int, message string, resp http.ResponseWriter, req *http.Request) {
-	srv.alog.Msg(req.RemoteAddr, code, req.Method, req.RequestURI, message)
+	if !srv.alogOff {
+		srv.alog.Msg(req.RemoteAddr, code, req.Method, req.RequestURI, message)
+	}
+	if srv.alogOff && code != 404 {
+		// log errors if it is not 404
+		srv.elog.Msg(req.RemoteAddr, code, req.Method, req.RequestURI, message)
+	}
 	resp.Header().Add("content-type", "text/plain; charset=utf-8")
 	resp.WriteHeader(code)
 	resp.Write([]byte(message))
 }
+
 func (srv *Server) archiveHandler(
 	fs filer.Filer,
 	urlPrefix string,
@@ -182,12 +191,16 @@ func (srv *Server) archiveHandler(
 	resp.Header().Add("x-name", stat.Name())
 
 	if !IsModifiedSince(req.Header.Get("if-modified-since"), stat.ModTime()) {
-		srv.alog.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
+		if !srv.alogOff {
+			srv.alog.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
+		}
 		resp.WriteHeader(304) // not modified
 		return
 	}
 
-	srv.alog.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
+	if !srv.alogOff {
+		srv.alog.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
+	}
 	resp.WriteHeader(200)
 
 	if req.Method == http.MethodHead {
