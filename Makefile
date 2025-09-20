@@ -2,10 +2,12 @@
 
 TEMP_TAG   = localhost/squashfs-httpd:latest
 TARGET_BIN = squashfs-httpd
-BUILD_CMD  = CGO_ENABLED=0 go build -ldflags="-w -s" -o $(DIST_DIR)$(DIST_NAME)/${TARGET_BIN} ./cmd/squashsf-httpd
+DIST_DIR=./var/dist/
+BUILD_CMD  = CGO_ENABLED=0 go build -ldflags="-w -s -X main.Version=$(TAG)" -o $(DIST_DIR)$(DIST_NAME)/${TARGET_BIN} ./cmd/squashsf-httpd
 DIST_CMD   = cd $(DIST_DIR)$(DIST_NAME) && 7z a -tzip -so * > ../$(DIST_NAME).zip && cd .. && rm -rf $(DIST_NAME)
 
 squashfs-httpd: DIST_DIR=.
+squashfs-httpd: TAG=develop
 squashfs-httpd: tag
 	$(BUILD_CMD)
 
@@ -18,26 +20,28 @@ dockerbuild:
 
 tag:
 	git rev-parse --abbrev-ref HEAD > TAG
+	grep -F HEAD TAG && git tag --points-at HEAD > tag || true
+	grep -F main TAG && git rev-parse --short main > TAG || true
 
 test:
 	go test ./...
 
-dist-linux-amd64: DIST_DIR=./var/dist/
 dist-linux-amd64: DIST_NAME=linux-amd64-$(shell cat TAG)
+dist-linux-amd64: TAG=$(shell cat TAG)
 dist-linux-amd64: 
 	mkdir -p $(DIST_DIR)$(DIST_NAME)
 	GOOS=linux GOARCH=amd64 $(BUILD_CMD)
 	$(DIST_CMD)
 
-dist-linux-386: DIST_DIR=./var/dist/
 dist-linux-386: DIST_NAME=linux-i386-$(shell cat TAG)
+dist-linux-386: TAG=$(shell cat TAG)
 dist-linux-386:
 	mkdir -p $(DIST_DIR)$(DIST_NAME)
 	GOOS=linux GOARCH=386 $(BUILD_CMD)
 	$(DIST_CMD)
 
-dist-linux-arm64: DIST_DIR=./var/dist/
 dist-linux-arm64: DIST_NAME=linux-arm64-$(shell cat TAG)
+dist-linux-arm64: TAG=$(shell cat TAG)
 dist-linux-arm64:
 	mkdir -p $(DIST_DIR)$(DIST_NAME)
 	GOOS=linux GOARCH=arm64 $(BUILD_CMD)

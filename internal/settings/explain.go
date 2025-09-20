@@ -6,7 +6,8 @@ import (
 	"github.com/ein-gast/go-squashsf-httpd/internal/logger"
 )
 
-func PrintSetting(s Settings, log logger.Logger) {
+func PrintSetting(s Settings, ver string, log logger.Logger) {
+	log.Msg(fmt.Sprintf("Version:\t%s", ver))
 	log.Msg(fmt.Sprintf("Listen:\t%s:%d", s.BindAddr, s.BindPort))
 	log.Msg(fmt.Sprintf("Charset:\t%s", s.DefaultChareset))
 	log.Msg(fmt.Sprintf("BuffSize:\t%d", s.BufferSize))

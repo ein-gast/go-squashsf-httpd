@@ -14,6 +14,8 @@ import (
 	"github.com/ein-gast/go-squashsf-httpd/internal/settings"
 )
 
+var Version string = "from-sources"
+
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	config := settingsFromFlags()
@@ -22,7 +24,7 @@ func main() {
 	reopenLogs(elog, alog, config)
 
 	elog.Msg("Starting with configuation")
-	settings.PrintSetting(*config, elog)
+	settings.PrintSetting(*config, Version, elog)
 
 	elog.Msg("Adding MIME types...")
 	filer.AddMimeTypes()
@@ -40,6 +42,7 @@ func main() {
 func settingsFromFlags() *settings.Settings {
 	config := settings.NewSettings()
 	var err error
+	version := flag.Bool("version", false, "Show version")
 	yamlPath := flag.String("config", "", "Config file path")
 	bindAddr := flag.String("host", config.BindAddr, "Bind this address")
 	bindPort := flag.Int("port", config.BindPort, "Listen this port")
@@ -47,12 +50,16 @@ func settingsFromFlags() *settings.Settings {
 	squash := flag.String("squash", "", "SquashFS file path")
 	charset := flag.String("charset", config.DefaultChareset, "Default charset for text")
 	flag.Parse()
+	if *version {
+		fmt.Println("Version: ", Version)
+		os.Exit(1)
+	}
 
 	if *yamlPath != "" {
 		config, err = settings.Load(*yamlPath)
 		if err != nil {
 			fmt.Println("Config reading error:", err.Error())
-			os.Exit(0)
+			os.Exit(1)
 		}
 	} else {
 		config.BindAddr = *bindAddr
@@ -62,7 +69,7 @@ func settingsFromFlags() *settings.Settings {
 
 	if len(config.Archives) == 0 && *squash == "" {
 		fmt.Println("At least one SquashFS file path must be provided in CLI or config")
-		os.Exit(0)
+		os.Exit(1)
 	}
 	if *squash != "" {
 		config.Archives = append(
