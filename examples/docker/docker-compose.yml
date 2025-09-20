@@ -1,0 +1,19 @@
+services:
+  nginx:
+    image: nginx:1.14.2-alpine
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./nginx/etc/nginx.conf:/etc/nginx/conf.d/nginx.conf
+      - ./nginx/html:/app/html
+  squashfs-httpd:
+    build:
+      context: ../../
+      dockerfile_inline: |
+        FROM scratch
+        ADD /squashfs-httpd /squashfs-httpd
+    entrypoint: [ "/squashfs-httpd", "-config", "/conf.yaml" ]
+    volumes:
+      # - ../../squashfs-httpd:/squashfs-httpd
+      - ./conf.yaml:/conf.yaml
+      - ../data:/data

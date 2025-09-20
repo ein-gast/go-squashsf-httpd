@@ -1,0 +1,14 @@
+bind_addr: 0.0.0.0
+bind_port: 8080
+charset: utf-8
+buffer: 10240
+error_log: "/dev/stderr"
+access_log: "/dev/stderr"
+client_timeout: 5.0
+routes:
+  - prefix: /me/
+    squash: /data/potree-lion.sq
+  - prefix: /you/
+    squash: /data/potree-lion.sq
+  - prefix: /all/
+    squashdir: /data/
