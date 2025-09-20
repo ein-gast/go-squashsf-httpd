@@ -147,11 +147,11 @@ func (srv *Server) nullHandler(resp http.ResponseWriter, req *http.Request) {
 
 func (srv *Server) writeError(code int, message string, resp http.ResponseWriter, req *http.Request) {
 	if !srv.alogOff {
-		srv.alog.Msg(req.RemoteAddr, code, req.Method, req.RequestURI, message)
+		srv.alog.Msg(logFormatDefault(code, message, req)...)
 	}
 	if srv.alogOff && code != 404 {
 		// log errors if it is not 404
-		srv.elog.Msg(req.RemoteAddr, code, req.Method, req.RequestURI, message)
+		srv.elog.Msg(logFormatDefault(code, message, req)...)
 	}
 	resp.Header().Add("content-type", "text/plain; charset=utf-8")
 	resp.WriteHeader(code)
@@ -192,14 +192,14 @@ func (srv *Server) archiveHandler(
 
 	if !IsModifiedSince(req.Header.Get("if-modified-since"), stat.ModTime()) {
 		if !srv.alogOff {
-			srv.alog.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
+			srv.alog.Msg(logFormatDefault(304, "-", req)...)
 		}
 		resp.WriteHeader(304) // not modified
 		return
 	}
 
 	if !srv.alogOff {
-		srv.alog.Msg(req.RemoteAddr, 200, contentType, req.Method, req.RequestURI)
+		srv.alog.Msg(logFormatDefault(200, "-", req)...)
 	}
 	resp.WriteHeader(200)
 

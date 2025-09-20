@@ -101,7 +101,7 @@ func hookSignal(
 	s *settings.Settings,
 ) {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1)
+	signal.Notify(c, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
 
 	for {
 		select {
@@ -111,6 +111,9 @@ func hookSignal(
 			case syscall.SIGUSR1:
 				log.Msg("Reloading by signal...")
 				reopenLogs(srv.ELog(), srv.ALog(), s)
+				srv.Release()
+			case syscall.SIGUSR2:
+				log.Msg("Releasing by signal...")
 				srv.Release()
 			default:
 				log.Msg("Terminaging by signal...")
