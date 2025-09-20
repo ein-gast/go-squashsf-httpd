@@ -1,14 +1,15 @@
 package settings
 
 type Settings struct {
-	BindAddr        string          // bind host
-	BindPort        int             // bind port
-	Archives        []ServedArchive // served archives
-	DefaultChareset string          // text files charset (fddtfd to conten-type header)
-	BufferSize      int             // read (from squashfs) buffer size
-	ClientTimeout   float64         // client idle timeout
+	BindAddr        string  // bind host
+	BindPort        int     // bind port
+	DefaultChareset string  // text files charset (fddtfd to conten-type header)
+	BufferSize      int     // read (from squashfs) buffer size
+	ClientTimeout   float64 // client idle timeout
 	AccessLog       string
 	ErrorLog        string
+	Archives        []ServedArchive    // served archives
+	Directories     []ServedArchiveDir // served archive dirs
 }
 
 type ServedArchive struct {
@@ -16,16 +17,22 @@ type ServedArchive struct {
 	UrlPrefix   string
 }
 
+type ServedArchiveDir struct {
+	DirectoryPath string
+	UrlPrefix     string
+}
+
 func NewSettings() *Settings {
 	s := &Settings{
 		BindAddr:        "127.0.0.1",
 		BindPort:        8080,
-		Archives:        make([]ServedArchive, 0, 1),
 		DefaultChareset: "utf-8",
 		BufferSize:      10240,
 		ClientTimeout:   5.0,
 		AccessLog:       "/dev/stderr",
 		ErrorLog:        "/dev/stderr",
+		Archives:        make([]ServedArchive, 0, 4),
+		Directories:     make([]ServedArchiveDir, 0, 4),
 	}
 	return s
 }

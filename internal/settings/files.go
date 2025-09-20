@@ -8,8 +8,9 @@ import (
 )
 
 type YamlRoute struct {
-	Prefix string `yaml:"prefix"`
-	Squash string `yaml:"squash"`
+	Prefix    string `yaml:"prefix"`
+	Squash    string `yaml:"squash"`
+	SquashDir string `yaml:"squashdir"`
 }
 
 type YamlSettings struct {
@@ -43,6 +44,7 @@ func Load(cfgPath string) (*Settings, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// transrorming log paths
 	if len(y.ErrorLog) > 0 && !path.IsAbs(y.ErrorLog) {
 		y.ErrorLog = path.Join(base, y.ErrorLog)
@@ -51,10 +53,18 @@ func Load(cfgPath string) (*Settings, error) {
 		y.AccessLog = path.Join(base, y.AccessLog)
 	}
 	// transrorming route paths
-	for i := range y.Routes {
-		sq := y.Routes[i].Squash
-		if !path.IsAbs(sq) {
-			y.Routes[i].Squash = path.Join(base, sq)
+	for i, r := range y.Routes {
+		switch {
+		case len(r.Squash) > 0 && len(r.SquashDir) == 0:
+			sq := y.Routes[i].Squash
+			if !path.IsAbs(sq) {
+				y.Routes[i].Squash = path.Join(base, sq)
+			}
+		case len(r.Squash) == 0 && len(r.SquashDir) > 0:
+			sq := y.Routes[i].SquashDir
+			if !path.IsAbs(sq) {
+				y.Routes[i].SquashDir = path.Join(base, sq)
+			}
 		}
 	}
 
@@ -71,11 +81,20 @@ func (obj *YamlSettings) ToSetting() *Settings {
 	s.AccessLog = strDefault(obj.AccessLog, s.AccessLog)
 	s.ErrorLog = strDefault(obj.ErrorLog, s.ErrorLog)
 	s.Archives = make([]ServedArchive, 0, len(obj.Routes))
+	s.Directories = make([]ServedArchiveDir, 0, len(obj.Routes))
 	for _, r := range obj.Routes {
-		s.Archives = append(s.Archives, ServedArchive{
-			UrlPrefix:   r.Prefix,
-			ArchivePath: r.Squash,
-		})
+		if len(r.Squash) > 0 && len(r.SquashDir) == 0 {
+			s.Archives = append(s.Archives, ServedArchive{
+				UrlPrefix:   r.Prefix,
+				ArchivePath: r.Squash,
+			})
+		}
+		if len(r.Squash) == 0 && len(r.SquashDir) > 0 {
+			s.Directories = append(s.Directories, ServedArchiveDir{
+				UrlPrefix:     r.Prefix,
+				DirectoryPath: r.SquashDir,
+			})
+		}
 	}
 	return s
 }
@@ -95,6 +114,12 @@ func (s *Settings) ToYaml() *YamlSettings {
 		obj.Routes = append(obj.Routes, YamlRoute{
 			Prefix: r.UrlPrefix,
 			Squash: r.ArchivePath,
+		})
+	}
+	for _, r := range s.Directories {
+		obj.Routes = append(obj.Routes, YamlRoute{
+			Prefix:    r.UrlPrefix,
+			SquashDir: r.DirectoryPath,
 		})
 	}
 	return obj

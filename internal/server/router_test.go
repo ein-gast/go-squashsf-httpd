@@ -2,11 +2,9 @@ package server
 
 import (
 	"testing"
-
-	"github.com/ein-gast/go-squashsf-httpd/internal/settings"
 )
 
-func Test_pathInArchive(t *testing.T) {
+func Test_pathUnderRoute(t *testing.T) {
 	type args struct {
 		prefix  string
 		urlPath string
@@ -22,14 +20,13 @@ func Test_pathInArchive(t *testing.T) {
 		{"C", args{"/file/", "/file/path"}, "/path", false},
 		{"D", args{"/file", "/file/path/"}, "/path/", false},
 		{"E", args{"/file", "/path/"}, "", true},
+		//
+		{"X", args{"/dir", "/dir/file.sq/1"}, "/file.sq/1", false},
+		{"Y", args{"/dir", "/dir/file.sq"}, "/file.sq", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			route := settings.ServedArchive{
-				UrlPrefix:   tt.args.prefix,
-				ArchivePath: "~",
-			}
-			got, err := pathInArchive(route, tt.args.urlPath)
+			got, err := pathUnderRoute(tt.args.prefix, tt.args.urlPath)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("pathInArchive() error = %v, wantErr %v", err, tt.wantErr)
 				return

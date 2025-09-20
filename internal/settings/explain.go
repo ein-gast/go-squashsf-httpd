@@ -15,6 +15,9 @@ func PrintSetting(s Settings, log logger.Logger) {
 	log.Msg(fmt.Sprintf("ErrorLog:\t%s", s.ErrorLog))
 	log.Msg("Routes:")
 	for _, route := range s.Archives {
-		log.Msg(fmt.Sprintf("%s -> %s", route.UrlPrefix, route.ArchivePath))
+		log.Msg(fmt.Sprintf("file: %s -> %s", route.UrlPrefix, route.ArchivePath))
+	}
+	for _, route := range s.Directories {
+		log.Msg(fmt.Sprintf(" dir: %s -> %s", route.UrlPrefix, route.DirectoryPath))
 	}
 }

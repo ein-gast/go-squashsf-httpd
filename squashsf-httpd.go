@@ -111,6 +111,7 @@ func hookSignal(
 			case syscall.SIGUSR1:
 				log.Msg("Reloading by signal...")
 				reopenLogs(srv.ELog(), srv.ALog(), s)
+				srv.Release()
 			default:
 				log.Msg("Terminaging by signal...")
 				srv.Shutdown()

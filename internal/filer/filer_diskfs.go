@@ -47,20 +47,17 @@ type FilerDiskfs struct {
 	// reader      squashfs.Reader
 }
 
-func NewFilerDiskfs(archive settings.ServedArchive) (*FilerDiskfs, error) {
+func NewFilerDiskfs(diskFile *os.File) (*FilerDiskfs, error) {
+	var err error
 	res := &FilerDiskfs{
-		archivePath: archive.ArchivePath,
+		archivePath: diskFile.Name(),
 	}
-	file, err := os.Open(res.archivePath)
-	if err != nil {
-		return nil, err
-	}
-	res.diskStat, err = file.Stat()
+	res.diskStat, err = diskFile.Stat()
 	if err != nil {
 		return nil, err
 	}
 	res.disk = &fileStorage{
-		file: file,
+		file: diskFile,
 	}
 	res.fs, err = squashfs.Read(res.disk, res.diskStat.Size(), 0, 4096)
 	if err != nil {
@@ -69,9 +66,23 @@ func NewFilerDiskfs(archive settings.ServedArchive) (*FilerDiskfs, error) {
 	return res, nil
 }
 
+func NewFilerDiskfsFromRoute(archive settings.ServedArchive) (*FilerDiskfs, error) {
+	res := &FilerDiskfs{
+		archivePath: archive.ArchivePath,
+	}
+	file, err := os.Open(res.archivePath)
+	if err != nil {
+		return nil, err
+	}
+	return NewFilerDiskfs(file)
+}
+
 func (f *FilerDiskfs) Close() {
 	f.fs.Close()
 	f.disk.Close()
+}
+
+func (f *FilerDiskfs) Release() {
 }
 
 func (f *FilerDiskfs) PreOpen(filePath string) (io.ReadCloser, fs.FileInfo, error) {

@@ -3,19 +3,30 @@ package filer
 import (
 	"io"
 	"io/fs"
+	"os"
 
 	"github.com/ein-gast/go-squashsf-httpd/internal/settings"
 	"github.com/h2non/filetype/types"
 )
 
 type Filer interface {
-	Close()
-	PreOpen(filePath string) (io.ReadCloser, fs.FileInfo, error)
-	Mime(filePath string) types.MIME
+	PreOpen(filePath string) (io.ReadCloser, fs.FileInfo, error) // open file inside archive for reading
+	Mime(filePath string) types.MIME                             // ask for mime type
+	Close()                                                      // close archive
+	Release()                                                    // release caches and buffers
 }
 
-func NewFiler(archive settings.ServedArchive) (Filer, error) {
-	//filer, err := NewFilerCaleb(archive)
-	filer, err := NewFilerDiskfs(archive)
+func NewFilerFromRoute(filefroute settings.ServedArchive) (Filer, error) {
+	filer, err := NewFilerDiskfsFromRoute(filefroute)
+	return filer, err
+}
+
+func NewFilerFromFd(diskFile *os.File) (Filer, error) {
+	filer, err := NewFilerDiskfs(diskFile)
+	return filer, err
+}
+
+func NewFilerDirFromRoute(dirroute settings.ServedArchiveDir) (Filer, error) {
+	filer, err := NewFilerDirDiskfs(dirroute)
 	return filer, err
 }

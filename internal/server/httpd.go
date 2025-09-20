@@ -15,13 +15,14 @@ import (
 )
 
 type Server struct {
-	srv   *http.Server
-	elog  logger.Logger
-	alog  logger.Logger
-	ctx   context.Context
-	enc   string // default text encoding
-	bsize int
-	bpool *pool.BufferPool
+	srv    *http.Server
+	elog   logger.Logger
+	alog   logger.Logger
+	ctx    context.Context
+	enc    string // default text encoding
+	bsize  int
+	bpool  *pool.BufferPool
+	routes []filer.Filer
 }
 
 func NewServer(
@@ -35,10 +36,11 @@ func NewServer(
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 	res := &Server{
-		srv:  srv,
-		ctx:  ctx,
-		elog: elog,
-		alog: alog,
+		srv:    srv,
+		ctx:    ctx,
+		elog:   elog,
+		alog:   alog,
+		routes: make([]filer.Filer, 0, len(cfg.Archives)+len(cfg.Directories)),
 	}
 	res.srv.SetKeepAlivesEnabled(true)
 
@@ -53,17 +55,31 @@ func (srv *Server) ApplyConfig(cfg *settings.Settings) {
 
 	mux := http.NewServeMux()
 	rootHandled := false
+	// arcives
 	for _, archive := range cfg.Archives {
 		if archive.UrlPrefix == "/" {
 			rootHandled = true
 		}
-		handle, err := newPrefixHandler(srv, archive)
+		handle, err := srv.newPrefixHandlerF(archive)
 		if err != nil {
 			srv.elog.Msg("Cant start handling file:", archive.ArchivePath, "[", err.Error(), "]")
 			continue
 		}
 		mux.HandleFunc(archive.UrlPrefix, handle)
 	}
+	// arcive dirs
+	for _, archiveDir := range cfg.Directories {
+		if archiveDir.UrlPrefix == "/" {
+			rootHandled = true
+		}
+		handle, err := srv.newPrefixHandlerD(archiveDir)
+		if err != nil {
+			srv.elog.Msg("Cant start handling dir:", archiveDir.DirectoryPath, "[", err.Error(), "]")
+			continue
+		}
+		mux.HandleFunc(archiveDir.UrlPrefix, handle)
+	}
+	//
 	if !rootHandled {
 		mux.HandleFunc("/", srv.nullHandler)
 	}
@@ -74,13 +90,29 @@ func (srv *Server) ApplyConfig(cfg *settings.Settings) {
 	srv.srv.WriteTimeout = timeout
 }
 
-func newPrefixHandler(srv *Server, archive settings.ServedArchive) (func(resp http.ResponseWriter, req *http.Request), error) {
-	fs, err := filer.NewFiler(archive)
+func (srv *Server) newPrefixHandlerF(
+	archive settings.ServedArchive,
+) (func(resp http.ResponseWriter, req *http.Request), error) {
+	fs, err := filer.NewFilerFromRoute(archive)
 	if err != nil {
 		return nil, err
 	}
+	srv.routes = append(srv.routes, fs)
 	return func(resp http.ResponseWriter, req *http.Request) {
-		srv.archiveHandler(fs, archive, resp, req)
+		srv.archiveHandler(fs, archive.UrlPrefix, resp, req)
+	}, nil
+}
+
+func (srv *Server) newPrefixHandlerD(
+	archive settings.ServedArchiveDir,
+) (func(resp http.ResponseWriter, req *http.Request), error) {
+	fs, err := filer.NewFilerDirFromRoute(archive)
+	if err != nil {
+		return nil, err
+	}
+	srv.routes = append(srv.routes, fs)
+	return func(resp http.ResponseWriter, req *http.Request) {
+		srv.archiveHandler(fs, archive.UrlPrefix, resp, req)
 	}, nil
 }
 
@@ -90,6 +122,7 @@ func (srv *Server) Serve() error {
 	srv.elog.Msg("Server stopped:", err.Error())
 	return err
 }
+
 func (srv *Server) Shutdown() error {
 	srv.elog.Msg("Shutting down server...")
 	err := srv.srv.Shutdown(context.Background())
@@ -97,6 +130,13 @@ func (srv *Server) Shutdown() error {
 		srv.elog.Msg("Shutdown error:", err.Error())
 	}
 	return err
+}
+
+func (srv *Server) Release() {
+	srv.elog.Msg("Releasing data files...")
+	for _, fs := range srv.routes {
+		fs.Release()
+	}
 }
 
 func (srv *Server) nullHandler(resp http.ResponseWriter, req *http.Request) {
@@ -109,14 +149,13 @@ func (srv *Server) writeError(code int, message string, resp http.ResponseWriter
 	resp.WriteHeader(code)
 	resp.Write([]byte(message))
 }
-
 func (srv *Server) archiveHandler(
 	fs filer.Filer,
-	archive settings.ServedArchive,
+	urlPrefix string,
 	resp http.ResponseWriter,
 	req *http.Request,
 ) {
-	filePath, err := pathInArchive(archive, req.URL.Path)
+	filePath, err := pathUnderRoute(urlPrefix, req.URL.Path)
 	if err != nil {
 		srv.writeError(404, "Not Found: "+err.Error(), resp, req)
 		return

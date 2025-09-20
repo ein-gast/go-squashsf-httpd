@@ -19,9 +19,10 @@ func (info *FileStat) Size() int64 {
 	return info.size
 }
 func (info *FileStat) Mode() fs.FileMode {
-	//fs.ModeDir
-	//fs.ModePerm = 0777
-	return 0
+	if info.isDir {
+		return 0777
+	}
+	return 0666
 }
 func (info *FileStat) ModTime() time.Time {
 	return info.mTime
