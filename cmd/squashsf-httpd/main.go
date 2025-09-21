@@ -58,7 +58,7 @@ func settingsFromFlags() *settings.Settings {
 
 	if *version {
 		fmt.Println("Version:", Version)
-		fmt.Println("Golang:", runtime.Compiler)
+		fmt.Println("Golang:", runtime.Version())
 		os.Exit(0)
 	}
 

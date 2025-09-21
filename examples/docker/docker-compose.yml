@@ -11,9 +11,8 @@ services:
       context: ../../
       dockerfile_inline: |
         FROM scratch
-        ADD /squashfs-httpd /squashfs-httpd
     entrypoint: [ "/squashfs-httpd", "-config", "/conf.yaml" ]
     volumes:
-      # - ../../squashfs-httpd:/squashfs-httpd
+      - ../../squashfs-httpd:/squashfs-httpd
       - ./conf.yaml:/conf.yaml
       - ../data:/data
