@@ -22,6 +22,8 @@ type YamlSettings struct {
 	AccessLogOff    bool        `yaml:"access_log_off"`
 	AccessLog       string      `yaml:"access_log"`
 	ErrorLog        string      `yaml:"error_log"`
+	PidFileOff      bool        `yaml:"pid_file_off"`
+	PidFile         string      `yaml:"pid_file"`
 	Routes          []YamlRoute `yaml:"routes"`
 }
 
@@ -45,27 +47,24 @@ func Load(cfgPath string) (*Settings, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	// transrorming log paths
-	if len(y.ErrorLog) > 0 && !path.IsAbs(y.ErrorLog) {
-		y.ErrorLog = path.Join(base, y.ErrorLog)
+	if len(y.ErrorLog) > 0 {
+		y.ErrorLog = PathRelToAbs(y.ErrorLog, base)
 	}
-	if len(y.ErrorLog) > 0 && !path.IsAbs(y.AccessLog) {
-		y.AccessLog = path.Join(base, y.AccessLog)
+	if len(y.ErrorLog) > 0 {
+		y.AccessLog = PathRelToAbs(y.AccessLog, base)
 	}
+	if len(y.PidFile) > 0 {
+		y.PidFile = PathRelToAbs(y.PidFile, base)
+	}
+
 	// transrorming route paths
 	for i, r := range y.Routes {
 		switch {
 		case len(r.Squash) > 0 && len(r.SquashDir) == 0:
-			sq := y.Routes[i].Squash
-			if !path.IsAbs(sq) {
-				y.Routes[i].Squash = path.Join(base, sq)
-			}
+			y.Routes[i].Squash = PathRelToAbs(y.Routes[i].Squash, base)
 		case len(r.Squash) == 0 && len(r.SquashDir) > 0:
-			sq := y.Routes[i].SquashDir
-			if !path.IsAbs(sq) {
-				y.Routes[i].SquashDir = path.Join(base, sq)
-			}
+			y.Routes[i].SquashDir = PathRelToAbs(y.Routes[i].SquashDir, base)
 		}
 	}
 
@@ -82,6 +81,8 @@ func (obj *YamlSettings) ToSetting() *Settings {
 	s.AccessLogOff = obj.AccessLogOff
 	s.AccessLog = strDefault(obj.AccessLog, s.AccessLog)
 	s.ErrorLog = strDefault(obj.ErrorLog, s.ErrorLog)
+	s.PidFileOff = obj.PidFileOff
+	s.PidFile = strDefault(obj.PidFile, s.PidFile)
 	s.Archives = make([]ServedArchive, 0, len(obj.Routes))
 	s.Directories = make([]ServedArchiveDir, 0, len(obj.Routes))
 	for _, r := range obj.Routes {
@@ -111,6 +112,8 @@ func (s *Settings) ToYaml() *YamlSettings {
 		AccessLogOff:    s.AccessLogOff,
 		AccessLog:       s.AccessLog,
 		ErrorLog:        s.ErrorLog,
+		PidFileOff:      s.PidFileOff,
+		PidFile:         s.PidFile,
 		Routes:          make([]YamlRoute, 0, len(s.Archives)),
 	}
 	for _, r := range s.Archives {
@@ -140,4 +143,11 @@ func intDefault(val int, def int) int {
 		return val
 	}
 	return def
+}
+
+func PathRelToAbs(relPath string, basePath string) string {
+	if path.IsAbs(relPath) {
+		return relPath
+	}
+	return path.Join(basePath, relPath)
 }

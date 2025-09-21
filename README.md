@@ -4,7 +4,7 @@ This software is a HTTP-server which gets static files directly from SquashFS ar
 
 The server is written in golang. [github.com/diskfs/go-diskfs](https://github.com/diskfs/go-diskfs) is used to access SquashFS.
 
-# Building from surce
+# Building from source
 
 Building requires golang>=1.24.
 ```bash
@@ -54,6 +54,8 @@ buffer: 10240
 error_log: "./var/logs/error.log"
 access_log: "./var/logs/access.log"
 access_log_off: false
+#pid_file: "/run/squashfs-httpd.pid"
+pid_file_off: false
 client_timeout: 5.0
 # local paths to SquashFS are formed relative to the location of the configuration file
 routes:

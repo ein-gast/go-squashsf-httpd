@@ -62,6 +62,9 @@ error_log: "./var/logs/error.log"
 access_log: "./var/logs/access.log"
 # отключает запись в access_log
 access_log_off: false
+# если pid-файл не указан, то путь будет выбран автоматически
+#pid_file: "/run/squashfs-httpd.pid"
+pid_file_off: false
 # через столько секунд соединение будет разорвано, если не получилось считать или записать в него данные
 client_timeout: 5.0
 # способы подключения файлов:

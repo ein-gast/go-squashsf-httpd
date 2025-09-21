@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
+	"github.com/ein-gast/go-squashsf-httpd/internal/daemon"
 	"github.com/ein-gast/go-squashsf-httpd/internal/filer"
 	"github.com/ein-gast/go-squashsf-httpd/internal/logger"
 	"github.com/ein-gast/go-squashsf-httpd/internal/server"
@@ -29,13 +31,16 @@ func main() {
 	elog.Msg("Adding MIME types...")
 	filer.AddMimeTypes()
 
-	elog.Msg("PID:", os.Getpid())
+	pid := daemon.Pid(os.Getpid())
+	elog.Msg("PID:", pid)
+	createPid(pid, elog, config)
 
 	srv := server.NewServer(ctx, elog, alog, config)
 	elog.Msg("Installing signal hook...")
 	go hookSignal(ctx, cancel, elog, srv, config)
 
 	srv.Serve()
+	removePid(pid, elog, config)
 	elog.Msg("App terminated")
 }
 
@@ -50,9 +55,11 @@ func settingsFromFlags() *settings.Settings {
 	squash := flag.String("squash", "", "SquashFS file path")
 	charset := flag.String("charset", config.DefaultChareset, "Default charset for text")
 	flag.Parse()
+
 	if *version {
-		fmt.Println("Version: ", Version)
-		os.Exit(1)
+		fmt.Println("Version:", Version)
+		fmt.Println("Golang:", runtime.Compiler)
+		os.Exit(0)
 	}
 
 	if *yamlPath != "" {
@@ -133,4 +140,58 @@ func hookSignal(
 			return
 		}
 	}
+}
+
+func createPid(pid daemon.Pid, log logger.Logger, cfg *settings.Settings) {
+	if cfg.PidFileOff {
+		log.Msg("PID file is off - skipping creation")
+		return
+	}
+	xpid, err := daemon.WritePidFileIfAbsent(pid, cfg, false)
+	if err == nil {
+		log.Msg("PID file created")
+		return
+	}
+	if err == daemon.E_PID_EXIST {
+		p, err := os.FindProcess(int(xpid))
+		if err == nil && p.Signal(syscall.Signal(0)) == nil {
+			log.Msg("The PID file of running process exists:", xpid)
+			log.Msg("Refusing to start due to PID error")
+			os.Exit(1)
+		}
+	}
+	_, err = daemon.WritePidFileIfAbsent(pid, cfg, true)
+	if err != nil {
+		log.Msg(err.Error())
+		log.Msg("Refusing to start due to PID error")
+		os.Exit(1)
+	}
+	log.Msg("PID file owerwritten")
+}
+
+func removePid(pid daemon.Pid, log logger.Logger, cfg *settings.Settings) {
+	if cfg.PidFileOff {
+		log.Msg("PID file is off - skipping removing")
+		return
+	}
+	xpid, err := daemon.RemovePidFile(pid, cfg, false)
+	if err == nil {
+		log.Msg("PID file removed")
+		return
+	}
+	if err == daemon.E_PID_IS_NOT_MINE {
+		p, err := os.FindProcess(int(xpid))
+		if err == nil && p.Signal(syscall.Signal(0)) == nil {
+			log.Msg("Note: PID file exists and points to another RUNNING process")
+			log.Msg("PID file stays untouched")
+		} else {
+			log.Msg("Note: PID file exists and points to another DEAD process")
+		}
+	}
+	_, err = daemon.RemovePidFile(pid, cfg, true)
+	if err != nil {
+		log.Msg(err.Error())
+		return
+	}
+	log.Msg("PID file removed by force")
 }

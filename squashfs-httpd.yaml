@@ -5,6 +5,8 @@ buffer: 10240
 #error_log: "./var/logs/error.log"
 #access_log: "./var/logs/access.log"
 access_log_off: false
+pid_file: "./var/squashfs-httpd.pid"
+pid_file_off: false
 client_timeout: 5.0
 routes:
   # open http://127.0.0.1:8080/me/index.html
