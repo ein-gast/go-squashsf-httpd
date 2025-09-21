@@ -5,6 +5,7 @@ buffer: 10240
 error_log: "/dev/stderr"
 access_log: "/dev/stderr"
 access_log_off: false
+pid_file_off: true
 client_timeout: 5.0
 routes:
   - prefix: /me/

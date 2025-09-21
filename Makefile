@@ -3,7 +3,7 @@
 TEMP_TAG   = localhost/squashfs-httpd:latest
 TARGET_BIN = squashfs-httpd
 DIST_DIR=./var/dist/
-BUILD_CMD  = CGO_ENABLED=0 go build -ldflags="-w -s -X main.Version=$(TAG)" -o $(DIST_DIR)$(DIST_NAME)/${TARGET_BIN} ./cmd/squashsf-httpd
+BUILD_CMD  = CGO_ENABLED=0 go build -trimpath -ldflags="-w -s -X main.Version=$(TAG)" -o $(DIST_DIR)$(DIST_NAME)/${TARGET_BIN} ./cmd/squashsf-httpd
 DIST_CMD   = cd $(DIST_DIR)$(DIST_NAME) && 7z a -tzip -so * > ../$(DIST_NAME).zip && cd .. && rm -rf $(DIST_NAME)
 
 squashfs-httpd: DIST_DIR=.
