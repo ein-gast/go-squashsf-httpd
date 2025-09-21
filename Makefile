@@ -26,21 +26,21 @@ tag:
 test:
 	go test ./...
 
-dist-linux-amd64: DIST_NAME=linux-amd64-$(shell cat TAG)
+dist-linux-amd64: DIST_NAME=${TARGET_BIN}_$(shell cat TAG)_linux.amd64
 dist-linux-amd64: TAG=$(shell cat TAG)
 dist-linux-amd64: 
 	mkdir -p $(DIST_DIR)$(DIST_NAME)
 	GOOS=linux GOARCH=amd64 $(BUILD_CMD)
 	$(DIST_CMD)
 
-dist-linux-386: DIST_NAME=linux-i386-$(shell cat TAG)
+dist-linux-386: DIST_NAME=${TARGET_BIN}_$(shell cat TAG)_linux.386
 dist-linux-386: TAG=$(shell cat TAG)
 dist-linux-386:
 	mkdir -p $(DIST_DIR)$(DIST_NAME)
 	GOOS=linux GOARCH=386 $(BUILD_CMD)
 	$(DIST_CMD)
 
-dist-linux-arm64: DIST_NAME=linux-arm64-$(shell cat TAG)
+dist-linux-arm64: DIST_NAME=${TARGET_BIN}_$(shell cat TAG)_linux.arm64
 dist-linux-arm64: TAG=$(shell cat TAG)
 dist-linux-arm64:
 	mkdir -p $(DIST_DIR)$(DIST_NAME)
