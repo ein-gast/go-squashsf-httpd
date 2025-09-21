@@ -1,4 +1,4 @@
-.PHONY: all test dockerbuild dist dist-linux-amd64 dist-linux-386 dist-linux-arm64
+.PHONY: all test tag dockerbuild dist dist-linux-amd64 dist-linux-386 dist-linux-arm64
 
 TEMP_TAG   = localhost/squashfs-httpd:latest
 TARGET_BIN = squashfs-httpd
@@ -20,8 +20,8 @@ dockerbuild:
 
 tag:
 	git rev-parse --abbrev-ref HEAD > TAG
-	grep -F HEAD TAG && git tag --points-at HEAD > tag || true
-	grep -F main TAG && echo -n "git-" > TAG && git rev-parse --short main >> TAG || true
+	grep -qF HEAD TAG && git tag --points-at HEAD > TAG || true
+	grep -qF main TAG && echo -n "git-" > TAG && git rev-parse --short main >> TAG || true
 
 test:
 	go test ./...
