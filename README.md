@@ -2,7 +2,7 @@
 
 This software is a HTTP-server which gets static files directly from SquashFS archives without mounting it.
 
-The server is written in golang. [github.com/diskfs/go-diskfs] is used to access SquashFS.
+The server is written in golang. [github.com/diskfs/go-diskfs](https://github.com/diskfs/go-diskfs) is used to access SquashFS.
 
 # Building from surce
 
@@ -13,7 +13,7 @@ make all
 stat squashfs-httpd
 ```
 
-You also can build using docker (golang is not required on host).
+You also can build using Docker (golang is not required on host).
 ```bash
 git clone https://github.com/ein-gast/go-squashsf-httpd.git
 make dockerbuild
@@ -50,10 +50,12 @@ bind_addr: 127.0.0.1
 bind_port: 8080
 charset: utf-8
 buffer: 10240
+# local paths to logs are formed relative to the location of the configuration file
 error_log: "./var/logs/error.log"
 access_log: "./var/logs/access.log"
 access_log_off: false
 client_timeout: 5.0
+# local paths to SquashFS are formed relative to the location of the configuration file
 routes:
    # index.html is served at http://127.0.0.1:8080/one/index.html
   - prefix: /one/
@@ -71,7 +73,9 @@ If **USR1** signal is got then the server reopens logs by. If **USR2** signal is
 
 The data which led to the creation of this software were point clouds and tile caches. These data are usually "tiled" once and then stored as millions of nested folders and files. These folders are hard to back up or move. A nice way to solve this inconvenience is to pack the files into SquashFS and mount it.
 
-Mounting SquashFS starts being a problem when new data emerges on a daily basis. Someone should manage access rights to let applications mount new files. Another problem is an application in an unprivileged container; such applications cannot use even FUSE without tricks. So, it is convenient to have a small HTTP-server which could get files from SquashFS directly, and this is the main use-case for **squashfs-httpd**.
+Mounting SquashFS starts being a problem when new data emerges on a daily basis. Someone have to manage access rights to let applications mount new files. Another problem is an application in an unprivileged container; such applications cannot use even FUSE without tricks. So, it is convenient to have a small HTTP-server which could get files from SquashFS directly, and this is the main use-case for **squashfs-httpd**.
+
+A simple example of nginx + squashfs-httpd hosted in Docker is provided in the [./examples/docker/](./examples/docker/) folder.
 
 # Links
 - https://github.com/plougher/squashfs-tools
