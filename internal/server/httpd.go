@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/ein-gast/go-squashsf-httpd/internal/cache"
 	"github.com/ein-gast/go-squashsf-httpd/internal/filer"
 	"github.com/ein-gast/go-squashsf-httpd/internal/logger"
 	"github.com/ein-gast/go-squashsf-httpd/internal/pool"
@@ -22,6 +25,7 @@ type Server struct {
 	ctx     context.Context
 	enc     string // default text encoding
 	bsize   int
+	cache   cache.Cache
 	bpool   *pool.BufferPool
 	routes  []filer.Filer
 }
@@ -41,6 +45,7 @@ func NewServer(
 		ctx:    ctx,
 		elog:   elog,
 		alog:   alog,
+		cache:  cache.NewCache(elog, cfg),
 		routes: make([]filer.Filer, 0, len(cfg.Archives)+len(cfg.Directories)),
 	}
 	res.srv.SetKeepAlivesEnabled(true)
@@ -139,6 +144,7 @@ func (srv *Server) Release() {
 	for _, fs := range srv.routes {
 		fs.Release()
 	}
+	srv.cache.ClearAll()
 }
 
 func (srv *Server) nullHandler(resp http.ResponseWriter, req *http.Request) {
@@ -158,37 +164,88 @@ func (srv *Server) writeError(code int, message string, resp http.ResponseWriter
 	resp.Write([]byte(message))
 }
 
-func (srv *Server) archiveHandler(
-	fs filer.Filer,
-	urlPrefix string,
+func (srv *Server) writeData(data *cache.Data, resp http.ResponseWriter, req *http.Request) {
+	resp.Header().Add("content-type", data.Mime)
+	resp.Header().Add("content-length", fmt.Sprintf("%d", data.Size))
+	resp.Header().Add("last-modified", HttpDate(data.MTime))
+	resp.Header().Add("x-mode", "cache")
+
+	if !IsModifiedSince(req.Header.Get("if-modified-since"), data.MTime) {
+		if !srv.alogOff {
+			srv.alog.Msg(logFormatDefault(304, "-c", req)...)
+		}
+		resp.WriteHeader(304) // not modified
+		return
+	}
+
+	if !srv.alogOff {
+		srv.alog.Msg(logFormatDefault(200, "-c", req)...)
+	}
+	resp.WriteHeader(200)
+
+	if req.Method == http.MethodHead {
+		return
+	}
+	resp.Write(data.Data)
+}
+
+func (srv *Server) writeAndStoreData(
+	key cache.Key,
+	data io.Reader,
+	stat fs.FileInfo,
+	contentType string,
 	resp http.ResponseWriter,
 	req *http.Request,
 ) {
-	filePath, err := pathUnderRoute(urlPrefix, req.URL.Path)
+	buf, err := io.ReadAll(data)
 	if err != nil {
-		srv.writeError(404, "Not Found: "+err.Error(), resp, req)
+		srv.writeError(500, err.Error(), resp, req)
 		return
-	}
-	file, stat, err := fs.PreOpen(filePath)
-	if err != nil {
-		srv.writeError(404, "Not Found: "+err.Error(), resp, req)
-		return
-	}
-	defer file.Close()
-
-	var contentType string
-	mime := fs.Mime(filePath)
-	if mime.Type == "text" && srv.enc != "" {
-		contentType = mime.Value + "; charset=" + srv.enc
-	} else {
-		contentType = mime.Value
 	}
 
 	resp.Header().Add("content-type", contentType)
+	resp.Header().Add("content-length", fmt.Sprintf("%d", len(buf)))
+	resp.Header().Add("last-modified", HttpDate(stat.ModTime()))
+	resp.Header().Add("x-mode", "store")
+
+	if !IsModifiedSince(req.Header.Get("if-modified-since"), stat.ModTime()) {
+		if !srv.alogOff {
+			srv.alog.Msg(logFormatDefault(304, "-s", req)...)
+		}
+		resp.WriteHeader(304) // not modified
+		return
+	}
+
+	if !srv.alogOff {
+		srv.alog.Msg(logFormatDefault(200, "-s", req)...)
+	}
+	resp.WriteHeader(200)
+
+	ent := &cache.Data{
+		Data:  buf,
+		Size:  uint64(len(buf)),
+		Mime:  contentType,
+		MTime: stat.ModTime(),
+	}
+	srv.cache.Store(key, ent)
+
+	if req.Method == http.MethodHead {
+		return
+	}
+	resp.Write(buf)
+}
+
+func (srv *Server) writeStream(
+	data io.Reader,
+	stat fs.FileInfo,
+	contentType string,
+	resp http.ResponseWriter,
+	req *http.Request,
+) {
+	resp.Header().Add("content-type", contentType)
 	resp.Header().Add("content-length", fmt.Sprintf("%d", stat.Size()))
 	resp.Header().Add("last-modified", HttpDate(stat.ModTime()))
-	resp.Header().Add("x-path", filePath)
-	resp.Header().Add("x-name", stat.Name())
+	resp.Header().Add("x-mode", "stream")
 
 	if !IsModifiedSince(req.Header.Get("if-modified-since"), stat.ModTime()) {
 		if !srv.alogOff {
@@ -207,17 +264,60 @@ func (srv *Server) archiveHandler(
 		return
 	}
 
-	// TODO needs benchmarking:
-	//buf := bytes.NewBuffer(make([]byte, srv.bsize))
 	buf := srv.bpool.New()
 	defer srv.bpool.Return(buf)
 
-	_, err = io.CopyBuffer(resp, file, buf.Bytes())
+	_, err := io.CopyBuffer(resp, data, buf.Bytes())
 	if err != nil {
 		srv.elog.Msg(err.Error())
 		resp.Write([]byte(err.Error()))
 		return
 	}
+}
+
+func (srv *Server) archiveHandler(
+	fs filer.Filer,
+	urlPrefix string,
+	resp http.ResponseWriter,
+	req *http.Request,
+) {
+	filePath, err := pathUnderRoute(urlPrefix, req.URL.Path)
+	if err != nil {
+		srv.writeError(404, "Not Found: "+err.Error(), resp, req)
+		return
+	}
+
+	cKey := cacheKey(req.URL)
+	if data, found := srv.cache.Get(cKey); found {
+		srv.writeData(data, resp, req)
+		return
+	}
+
+	file, stat, err := fs.PreOpen(filePath)
+	if err != nil {
+		srv.writeError(404, "Not Found: "+err.Error(), resp, req)
+		return
+	}
+	defer file.Close()
+
+	var contentType string
+	mime := fs.Mime(filePath)
+	if mime.Type == "text" && srv.enc != "" {
+		contentType = mime.Value + "; charset=" + srv.enc
+	} else {
+		contentType = mime.Value
+	}
+
+	if srv.cache.IsStorable(uint64(stat.Size())) {
+		srv.writeAndStoreData(cKey, file, stat, contentType, resp, req)
+		return
+	}
+
+	srv.writeStream(file, stat, contentType, resp, req)
+}
+
+func cacheKey(reqUrl *url.URL) cache.Key {
+	return cache.Key(reqUrl.Path)
 }
 
 func (srv *Server) ELog() logger.Logger {

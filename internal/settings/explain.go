@@ -25,6 +25,12 @@ func PrintSetting(s Settings, ver string, log logger.Logger) {
 	} else {
 		log.Msg(fmt.Sprintf("PidFile:\t%s", s.PidFile))
 	}
+	if s.DataCacheOff {
+		log.Msg(fmt.Sprintf("DataCache:\t%s", "[disabled]"))
+	} else {
+		log.Msg(fmt.Sprintf("DataCacheCount:\t%d", s.DataCacheCount))
+		log.Msg(fmt.Sprintf("DataCacheEntSize:\t%d", s.DataCacheEntSize))
+	}
 	log.Msg("Routes:")
 	for _, route := range s.Archives {
 		log.Msg(fmt.Sprintf("file: %s -> %s", route.UrlPrefix, route.ArchivePath))

@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/diskfs/go-diskfs v1.7.0
 	github.com/h2non/filetype v1.1.3
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	gopkg.in/yaml.v2 v2.4.0
 )
 
