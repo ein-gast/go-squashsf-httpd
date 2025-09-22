@@ -13,7 +13,7 @@ type Filer interface {
 	PreOpen(filePath string) (io.ReadCloser, fs.FileInfo, error) // open file inside archive for reading
 	Mime(filePath string) types.MIME                             // ask for mime type
 	Close()                                                      // close archive
-	Release()                                                    // release caches and buffers
+	Release()                                                    // release caches and buffers, close or reopen files
 }
 
 func NewFilerFromRoute(filefroute settings.ServedArchive) (Filer, error) {
@@ -27,6 +27,6 @@ func NewFilerFromFd(diskFile *os.File) (Filer, error) {
 }
 
 func NewFilerDirFromRoute(dirroute settings.ServedArchiveDir) (Filer, error) {
-	filer, err := NewFilerDirDiskfs(dirroute)
+	filer, err := NewFilerDirDiskfsFromRoute(dirroute)
 	return filer, err
 }

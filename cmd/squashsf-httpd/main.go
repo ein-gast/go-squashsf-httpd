@@ -123,11 +123,10 @@ func hookSignal(
 			log.Msg("Got signal:", sig)
 			switch sig {
 			case syscall.SIGUSR1:
-				log.Msg("Reloading by signal...")
+				log.Msg("Reopening logs by signal...")
 				reopenLogs(srv.ELog(), srv.ALog(), s)
-				srv.Release()
 			case syscall.SIGUSR2:
-				log.Msg("Releasing by signal...")
+				log.Msg("Reopening archives signal...")
 				srv.Release()
 			default:
 				log.Msg("Terminaging by signal...")

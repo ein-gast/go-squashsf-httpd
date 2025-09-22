@@ -67,7 +67,7 @@ routes:
     squashdir: ./examples/data/
 ```
 
-If **USR1** signal is got then the server reopens logs by. If **USR2** signal is got then the server closes files which are opened below `squashdir` routes.
+If **USR1** signal is got then the server reopens logs by. If **USR2** signal is got then the server reopens SquashFS archives.
 
 ## Usage pattern
 

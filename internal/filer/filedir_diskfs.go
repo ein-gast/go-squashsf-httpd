@@ -20,18 +20,31 @@ type FilerDirDiskfs struct {
 	openedLock *sync.RWMutex
 }
 
-func NewFilerDirDiskfs(dirroute settings.ServedArchiveDir) (Filer, error) {
-	root, err := os.OpenRoot(dirroute.DirectoryPath)
-	if err != nil {
-		return nil, err
-	}
+func NewFilerDirDiskfs(dirPath string) (Filer, error) {
 	res := &FilerDirDiskfs{
-		root:       root,
-		rootPath:   dirroute.DirectoryPath,
+		root:       nil,
+		rootPath:   dirPath,
 		opened:     make(map[string]Filer, 8),
 		openedLock: &sync.RWMutex{},
 	}
+	var err error
+	res.root, err = res.openRoot()
+	if err != nil {
+		return nil, err
+	}
 	return res, nil
+}
+
+func NewFilerDirDiskfsFromRoute(dirroute settings.ServedArchiveDir) (Filer, error) {
+	return NewFilerDirDiskfs(dirroute.DirectoryPath)
+}
+
+func (f *FilerDirDiskfs) openRoot() (*os.Root, error) {
+	root, err := os.OpenRoot(f.rootPath)
+	if err != nil {
+		return nil, err
+	}
+	return root, nil
 }
 
 func (f *FilerDirDiskfs) Close() {
@@ -48,6 +61,13 @@ func (f *FilerDirDiskfs) Release() {
 		fs.Close()
 	}
 	f.opened = make(map[string]Filer, 8)
+	newRoot, err := f.openRoot()
+	if err != nil {
+		return
+	}
+	oldRoot := f.root
+	f.root = newRoot
+	oldRoot.Close()
 }
 
 func pathToParts(filePath string) []string {
